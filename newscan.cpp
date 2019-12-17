@@ -237,7 +237,7 @@ struct KR_window {
 };
 // -----------------------------------------------------------
 
-static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>&  freq, FILE *tmp_parse_file, bool is_ref, vector<pair<uint64_t,uint64_t>> start_phrase, FILE *last, FILE *sa, uint64_t &pos);
+static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>&  freq, FILE *tmp_parse_file, bool is_ref, vector<pair<uint64_t,uint64_t>> &start_phrase, FILE *last, FILE *sa, uint64_t &pos);
 
 // For paralelization, not there yet
 #ifndef NOTHREADS
@@ -264,7 +264,7 @@ uint64_t kr_hash(string s) {
 
 // save current word in the freq map and update it leaving only the 
 // last minsize chars which is the overlap with next word  
-static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& freq, FILE *tmp_parse_file, bool is_ref,vector<pair<uint64_t,uint64_t>> start_phrase, FILE *last, FILE *sa, uint64_t &pos)
+static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& freq, FILE *tmp_parse_file, bool is_ref,vector<pair<uint64_t,uint64_t>> &start_phrase, FILE *last, FILE *sa, uint64_t &pos)
 {
   size_t minsize = arg.w; 
   assert(pos==0 || w.size() > minsize);
@@ -278,8 +278,10 @@ static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& fre
   // get the hash value and write it to the temporary parse file
   uint64_t hash = kr_hash(w);
   if(fwrite(&hash,sizeof(hash),1,tmp_parse_file)!=1) die("parse write error");
-  if (is_ref)
-      start_phrase.push_back(make_pair(pos,hash));
+  if (is_ref){
+      if (pos == 0) start_phrase.push_back(make_pair(pos,hash));
+      else start_phrase.push_back(make_pair(pos-minsize,hash));
+  }
 
 #ifndef NOTHREADS
   xpthread_mutex_lock(&map_mutex,__LINE__,__FILE__);
@@ -365,24 +367,25 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
       // if we are not simply compressing then we cannot accept 0,1,or 2
       cerr << "Invalid char found in input file. Exiting...\n"; exit(1);
     }
+    if (c != '\n'){
     word.append(1,c);
     uint64_t hash = krw.addchar(c);
     if(hash%arg.p==0) {
       // end of word, save it and write its full hash to the output file
       // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" << krw.get_window() << ">" <<  endl;
       save_update_word(arg,word,wordFreq,g,true,start_phrase,last_file,sa_file,pos);
-    }    
+    }}    
   }
   // virtually add w null chars at the end of the file and add the last word in the dict
   word.append(arg.w,Dollar);
   save_update_word(arg,word,wordFreq,g,true,start_phrase,last_file,sa_file,pos);
 
-  //Reads parsing
+  if(arg.compress)
+    assert(pos==krw.tot_char);
+  else 
+    assert(pos==krw.tot_char+arg.w);
 
-  // Mark a sepatation in the parsing
-  // TODO (deal with in the transformation of the parse)
-  //uint64_t separator = PRIME+1;
-  //if(fwrite(&separator,sizeof(separator),1,g)!=1) die("parse write error");
+  //Reads parsing
 
   //open read file
   //iterate over all read
@@ -392,19 +395,57 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
     throw new std::runtime_error("Cannot open input file " + arg.ReadsFileName);
   }
 
+  uint64_t pos_read;
+  string read;
   //Process each read
-  //
-  //TODO
+  while ( f_r >> pos_read >> read ) {
+        //starting position of the extended read in the parse
+        uint64_t r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(), make_pair(pos_read - arg.w,numeric_limits<uint64_t>::max())) - start_phrase.begin() -1;
+        //ending position of the extended read in the parse
+        uint64_t r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(), make_pair(pos_read + read.size()-arg.w,numeric_limits<uint64_t>::max())) - start_phrase.begin() -1;
+
+        //phrase we are going to extend the read with, at the front and at the end
+        string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
+        string back_phrase =  wordFreq[start_phrase[r_e_p].second].str;
+
+        //The extended read that will be parses in to phrases
+        string read_extanded = front_phrase.substr(0, pos_read - start_phrase[r_s_p].first) + read + back_phrase.substr(pos_read + read.size() - start_phrase[r_e_p].first);
+
+        //cout << pos_read << " "  << r_s_p <<  " " << r_e_p <<  " " << start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl << read << endl << front_phrase << endl << back_phrase << endl << read_extanded << endl;
+
+        // Mark a sepatation in the parsing
+        uint64_t separator = PRIME+1;
+        if(fwrite(&separator,sizeof(separator),1,g)!=1) die("parse write error");
+        //Parse the extended read
+        //Write the start of the read in the parse
+        if(fwrite(&r_s_p,sizeof(r_s_p),1,g)!=1) die("parse write error");
+
+        //Write the parsing of the read
+        // init empty KR window: constructor only needs window size
+        krw.reset();
+        word = read_extanded.substr(0,arg.w);
+        uint64_t i = 0;
+        while ((long) i < (long) arg.w) {
+            krw.addchar(read_extanded[i]);
+            i++;
+        }
+        while( i < read_extanded.size() ) {
+          word.append(1,read_extanded[i]);
+          uint64_t hash = krw.addchar(read_extanded[i]);
+          if(hash%arg.p==0) {
+            // end of word, save it and write its full hash to the output file
+            // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" << krw.get_window() << ">" <<  endl;
+            save_update_word(arg,word,wordFreq,g,false,start_phrase,last_file,sa_file,pos);
+          }
+          i++;
+        }
+  }
+
 
   // close input and output files 
   if(sa_file) if(fclose(sa_file)!=0) die("Error closing SA file");
   if(last_file) if(fclose(last_file)!=0) die("Error closing last file");  
   if(fclose(g)!=0) die("Error closing parse file");
-  if(arg.compress)
-    assert(pos==krw.tot_char);
-  else 
-    assert(pos==krw.tot_char+arg.w);
-  // if(pos!=krw.tot_char+arg.w) cerr << "Pos: " << pos << " tot " << krw.tot_char << endl;
   f.close();
   return krw.tot_char;
 }
@@ -472,14 +513,27 @@ void remapParse(Args &arg, map<uint64_t,word_stats> &wfreq)
   // recompute occ as an extra check 
   vector<occ_int_t> occ(wfreq.size()+1,0); // ranks are zero based 
   uint64_t hash;
+  uint64_t separator = PRIME+1;
   while(true) {
     size_t s = mfread(&hash,sizeof(hash),1,moldp);
     if(s==0) break;
     if(s!=1) die("Unexpected parse EOF");
-    word_int_t rank = wfreq.at(hash).rank;
-    occ[rank]++;
-    s = fwrite(&rank,sizeof(rank),1,newp);
-    if(s!=1) die("Error writing to new parse file");
+    if(hash==separator) {
+        //cout << endl; //output for debug
+        word_int_t sep_newp = wfreq.size()+1;
+        s = fwrite(&sep_newp,sizeof(sep_newp),1,newp);
+        if(s!=1) die("Error writing to new parse file");
+        s = mfread(&hash,sizeof(hash),1,moldp);
+        //cout << hash << " # "; // output for debug
+        if (fwrite(&hash,sizeof(hash),1,newp)!=1) die("Error writing to new parse file");
+    }
+    else {
+        word_int_t rank = wfreq.at(hash).rank;
+        //cout << rank << " "; // output for debug
+        occ[rank]++;
+        s = fwrite(&rank,sizeof(rank),1,newp);
+        if(s!=1) die("Error writing to new parse file");
+    }
   }
   if(fclose(newp)!=0) die("Error closing new parse file");
   if(mfclose(moldp)!=0) die("Error closing old parse segment");
