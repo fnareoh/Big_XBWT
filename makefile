@@ -2,6 +2,7 @@
 CXX_FLAGS=-std=c++11 -O3 -Wall -Wextra -g
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
+BAM_FLAGS=-I $(HOME)/include/bamtools/ -L $(HOME)/lib/
 
 # executables not using threads (and therefore not needing the thread library)
 EXECS_NT=newscanNT.x
@@ -10,7 +11,11 @@ EXECS_NT=newscanNT.x
 .PHONY: all clean tarfile
 
 newscanNT.x: newscan.cpp malloc_count.o utils.o
-	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl -DNOTHREADS
+	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
+
+newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
+	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lz -lbamtools
+
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<

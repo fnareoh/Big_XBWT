@@ -143,12 +143,15 @@
 #include <random>
 #include <vector>
 #include <map>
-#ifdef GZSTREAM
-#include <gzstream.h>
-#endif
 extern "C" {
 #include "utils.h"
 }
+#ifdef BAM_READER
+    //To read the bam format
+    #include "api/BamReader.h"
+    #include "api/BamWriter.h"
+    using namespace BamTools;
+#endif
 
 using namespace std;
 using namespace __gnu_cxx;
@@ -178,7 +181,6 @@ struct Args {
    int w = 10;            // sliding window size and its default 
    int p = 100;           // modulus for establishing stopping w-tuples 
    bool SAinfo = false;   // compute SA information
-   bool compress = false; // parsing called in compress mode 
    int th=0;              // number of helper threads
    int verbose=0;         // verbosity level 
 };
@@ -239,11 +241,6 @@ struct KR_window {
 
 static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>&  freq, FILE *tmp_parse_file, bool is_ref, vector<pair<uint64_t,uint64_t>> &start_phrase, FILE *last, FILE *sa, uint64_t &pos);
 
-// For paralelization, not there yet
-#ifndef NOTHREADS
-#include "newscan.hpp"
-#endif
-
 
 
 // compute 64-bit KR hash of a string 
@@ -271,10 +268,7 @@ static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& fre
   if(w.size() <= minsize) return;
   // save overlap 
   string overlap(w.substr(w.size() - minsize)); // keep last minsize chars
-  // if we are compressing, discard the overlap
-  if(arg.compress)
-     w.erase(w.size() - minsize); // erase last minsize chars 
-  
+
   // get the hash value and write it to the temporary parse file
   uint64_t hash = kr_hash(w);
   if(fwrite(&hash,sizeof(hash),1,tmp_parse_file)!=1) die("parse write error");
@@ -283,9 +277,6 @@ static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& fre
       else start_phrase.push_back(make_pair(pos-minsize,hash));
   }
 
-#ifndef NOTHREADS
-  xpthread_mutex_lock(&map_mutex,__LINE__,__FILE__);
-#endif  
   // update frequency table for current hash
   if(freq.find(hash)==freq.end()) {
       freq[hash].occ = 1; // new hash
@@ -304,21 +295,16 @@ static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& fre
         exit(1);
       }
   }
-#ifndef NOTHREADS
-  xpthread_mutex_unlock(&map_mutex,__LINE__,__FILE__);
-#endif
-  if(arg.compress) 
-    pos += w.size(); // if compressing, just update position 
-  else {
-    // update last/sa files  
-    // output char w+1 from the end
-    if(fputc(w[w.size()- minsize-1],last)==EOF) die("Error writing to .last file");
-    // compute ending position +1 of current word and write it to sa file 
-    // pos is the ending position+1 of the previous word and is updated here 
-    if(pos==0) pos = w.size()-1; // -1 is for the initial $ of the first word
-    else pos += w.size() -minsize; 
-    if(sa) if(fwrite(&pos,IBYTES,1,sa)!=1) die("Error writing to sa info file");
-  } 
+
+  // update last/sa files
+  // output char w+1 from the end
+  if(fputc(w[w.size()- minsize-1],last)==EOF) die("Error writing to .last file");
+  // compute ending position +1 of current word and write it to sa file 
+  // pos is the ending position+1 of the previous word and is updated here 
+  if(pos==0) pos = w.size()-1; // -1 is for the initial $ of the first word
+  else pos += w.size() -minsize; 
+  if(sa) if(fwrite(&pos,IBYTES,1,sa)!=1) die("Error writing to sa info file");
+
   // keep only the overlapping part of the window
   w.assign(overlap);
 }
@@ -329,13 +315,12 @@ static void save_update_word(Args& arg, string& w, map<uint64_t,word_stats>& fre
 // use a KR-hash as the word ID that is immediately written to the parse file
 uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
 {
-  //open a, possibly compressed, input file
+  //open a input file for the reference
   string fnam = arg.inputFileName;
-  #ifdef GZSTREAM 
-  igzstream f(fnam.c_str());
-  #else
+  bool is_fasta = false;
+  if (fnam.substr(fnam.find_last_of(".") + 1) == "fasta") is_fasta=true;
   ifstream f(fnam);
-  #endif    
+
   if(!f.rdbuf()->is_open()) {// is_open does not work on igzstreams 
     perror(__func__);
     throw new std::runtime_error("Cannot open input file " + fnam);
@@ -345,60 +330,96 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
   FILE *g = open_aux_file(arg.inputFileName.c_str(),EXTPARS0,"wb");
   vector<pair<uint64_t,uint64_t>> start_phrase;
   FILE *sa_file = NULL, *last_file=NULL;
-  if(!arg.compress) {
-    // open output file containing the char at position -(w+1) of each word
-    last_file = open_aux_file(arg.inputFileName.c_str(),EXTLST,"wb");  
-    // if requested open file containing the ending position+1 of each word
-    if(arg.SAinfo) 
-      sa_file = open_aux_file(arg.inputFileName.c_str(),EXTSAI,"wb");
-  }
-  
+  // open output file containing the char at position -(w+1) of each word
+  last_file = open_aux_file(arg.inputFileName.c_str(),EXTLST,"wb");  
+  // if requested open file containing the ending position+1 of each word
+  if(arg.SAinfo) 
+    sa_file = open_aux_file(arg.inputFileName.c_str(),EXTSAI,"wb");
+
   // main loop on the chars of the input file
   int c;
+  string line = ""; //storing of a string used for the fasta format
+  int index_line = 0; //storing the position in the line
   uint64_t pos = 0; // ending position +1 of previous word in the original text, used for computing sa_info 
   assert(IBYTES<=sizeof(pos)); // IBYTES bytes of pos are written to the sa info file 
-  // init first word in the parsing with a Dollar char unless we are just compressing
+  // init first word in the parsing with a Dollar char
   string word("");
-  if(!arg.compress) word.append(1,Dollar);
+  word.append(1,Dollar);
   // init empty KR window: constructor only needs window size
   KR_window krw(arg.w);
-  while( (c = f.get()) != EOF ) {
-    if(c<=Dollar && !arg.compress) {
-      // if we are not simply compressing then we cannot accept 0,1,or 2
-      cerr << "Invalid char found in input file. Exiting...\n"; exit(1);
+  while(true) {
+    if (is_fasta) {
+        if ((long) index_line < (long) line.size()) {
+            c = line[index_line];
+            index_line++;
+            if (c == '\n') continue;
+        }
+        else {
+            if (f.eof()) break;
+            getline(f,line);
+            index_line = 0;
+            if (line[0] == '>') {
+                index_line = line.size();
+            }
+            continue;
+        }
     }
-    if (c != '\n'){
+    if (!is_fasta && ((c = f.get()) == EOF)) break;
     word.append(1,c);
     uint64_t hash = krw.addchar(c);
     if(hash%arg.p==0) {
       // end of word, save it and write its full hash to the output file
       // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" << krw.get_window() << ">" <<  endl;
       save_update_word(arg,word,wordFreq,g,true,start_phrase,last_file,sa_file,pos);
-    }}    
+    }
   }
   // virtually add w null chars at the end of the file and add the last word in the dict
   word.append(arg.w,Dollar);
   save_update_word(arg,word,wordFreq,g,true,start_phrase,last_file,sa_file,pos);
 
-  if(arg.compress)
-    assert(pos==krw.tot_char);
-  else 
-    assert(pos==krw.tot_char+arg.w);
+  assert(pos==krw.tot_char+arg.w);
 
   //Reads parsing
 
   //open read file
+  fnam = arg.ReadsFileName;
+  bool is_bam = false;
+  if (fnam.substr(fnam.find_last_of(".") + 1) == "bam") is_bam=true;
   //iterate over all read
-  ifstream f_r(arg.ReadsFileName);
-  if(!f_r.rdbuf()->is_open()) {// is_open does not work on igzstreams 
-    perror(__func__);
-    throw new std::runtime_error("Cannot open input file " + arg.ReadsFileName);
+  ifstream f_r;
+  if (!is_bam) {
+      f_r.open(fnam);
+    if (!f_r.rdbuf()->is_open()) {
+      perror(__func__);
+      throw new std::runtime_error("Cannot open input file " + fnam);
+    }
   }
+  #ifdef BAM_READER
+  BamReader reader;
+  if (is_bam){
+     if (!reader.Open(fnam)) {
+        cerr << "Could not open input BAM file." << endl;
+        return 1;
+    }
+  }
+  BamAlignment al;
+  #endif
 
   uint64_t pos_read;
   string read;
   //Process each read
-  while ( f_r >> pos_read >> read ) {
+  while ( true ) {
+        if (!is_bam) {
+            if (f_r.eof()) break;
+            f_r >> pos_read >> read;
+        }
+        #ifdef BAM_READER
+        else {
+            if (!reader.GetNextAlignment(al)) break;
+            pos_read = al.Position;
+            read = al.QueryBases;
+        }
+        #endif
         //starting position of the extended read in the parse
         uint64_t r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(), make_pair(pos_read - arg.w,numeric_limits<uint64_t>::max())) - start_phrase.begin() -1;
         //ending position of the extended read in the parse
@@ -411,7 +432,7 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
         //The extended read that will be parses in to phrases
         string read_extanded = front_phrase.substr(0, pos_read - start_phrase[r_s_p].first) + read + back_phrase.substr(pos_read + read.size() - start_phrase[r_e_p].first);
 
-        //cout << pos_read << " "  << r_s_p <<  " " << r_e_p <<  " " << start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl << read << endl << front_phrase << endl << back_phrase << endl << read_extanded << endl;
+        //cout << pos_read << " "  << r_s_p <<  " " << r_e_p <<  " " << start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl << read << endl << front_phrase << endl << back_phrase << endl << read_extanded << endl; //print for begug
 
         // Mark a sepatation in the parsing
         uint64_t separator = PRIME+1;
@@ -441,7 +462,6 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
         }
   }
 
-
   // close input and output files 
   if(sa_file) if(fclose(sa_file)!=0) die("Error closing SA file");
   if(last_file) if(fclose(last_file)!=0) die("Error closing last file");  
@@ -461,46 +481,29 @@ bool pstringCompare(const string *a, const string *b)
 void writeDictOcc(Args &arg, map<uint64_t,word_stats> &wfreq, vector<const string *> &sortedDict)
 {
   assert(sortedDict.size() == wfreq.size());
-  FILE *fdict, *fwlen=NULL, *focc=NULL;
+  FILE *fdict, *focc=NULL;
   // open dictionary and occ files
-  if(arg.compress) {
-    fdict = open_aux_file(arg.inputFileName.c_str(),EXTDICZ,"wb");
-    fwlen = open_aux_file(arg.inputFileName.c_str(),EXTDZLEN,"wb");
-  }
-  else {
-    fdict = open_aux_file(arg.inputFileName.c_str(),EXTDICT,"wb");
-    focc = open_aux_file(arg.inputFileName.c_str(),EXTOCC,"wb");
-  }
-  
+  fdict = open_aux_file(arg.inputFileName.c_str(),EXTDICT,"wb");
+  focc = open_aux_file(arg.inputFileName.c_str(),EXTOCC,"wb");
+
   word_int_t wrank = 1; // current word rank (1 based)
   for(auto x: sortedDict) {          // *x is the string representing the dictionary word
     const char *word = (*x).data();       // current dictionary word
     size_t len = (*x).size();  // offset and length of word
-    assert(len>(size_t)arg.w || arg.compress);
+    assert(len>(size_t)arg.w );
     uint64_t hash = kr_hash(*x);
     auto& wf = wfreq.at(hash);
     assert(wf.occ>0);
     size_t s = fwrite(word,1,len, fdict);
     if(s!=len) die("Error writing to DICT file");
-    if(arg.compress) {
-      s = fwrite(&len,4,1,fwlen);
-      if(s!=1) die("Error writing to WLEN file");
-    }
-    else {
-      if(fputc(EndOfWord,fdict)==EOF) die("Error writing EndOfWord to DICT file");
-      s = fwrite(&wf.occ,sizeof(wf.occ),1, focc);
-      if(s!=1) die("Error writing to OCC file");
-    }
+    if(fputc(EndOfWord,fdict)==EOF) die("Error writing EndOfWord to DICT file");
+    s = fwrite(&wf.occ,sizeof(wf.occ),1, focc);
+    if(s!=1) die("Error writing to OCC file");
     assert(wf.rank==0);
     wf.rank = wrank++;
   }
-  if(arg.compress) {
-    if(fclose(fwlen)!=0) die("Error closing WLEN file");
-  }
-  else {
-    if(fputc(EndOfDict,fdict)==EOF) die("Error writing EndOfDict to DICT file");
-    if(fclose(focc)!=0) die("Error closing OCC file");
-  }
+  if(fputc(EndOfDict,fdict)==EOF) die("Error writing EndOfDict to DICT file");
+  if(fclose(focc)!=0) die("Error closing OCC file");
   if(fclose(fdict)!=0) die("Error closing DICT file");
 }
 
@@ -550,15 +553,9 @@ void print_help(char** argv, Args &args) {
   cout << "  Options: " << endl
         << "\t-w W\tsliding window size, def. " << args.w << endl
         << "\t-p M\tmodulo for defining phrases, def. " << args.p << endl
-        #ifndef NOTHREADS
-        << "\t-t M\tnumber of helper threads, def. none " << endl
-        #endif        
         << "\t-c  \tdiscard redundant information" << endl
         << "\t-h  \tshow help and exit" << endl
         << "\t-s  \tcompute suffix array info" << endl;
-  #ifdef GZSTREAM
-  cout << "If the input file is gzipped it is automatically extracted\n";
-  #endif
   exit(1);
 }
 
@@ -577,8 +574,6 @@ void parseArgs( int argc, char** argv, Args& arg ) {
       switch(c) {
         case 's':
         arg.SAinfo = true; break;
-        case 'c':
-        arg.compress = true; break;
         case 'w':
         sarg.assign( optarg );
         arg.w = stoi( sarg ); break;
@@ -615,17 +610,10 @@ void parseArgs( int argc, char** argv, Args& arg ) {
      cout << "Modulus must be at leas 10\n";
      exit(1);
    }
-   #ifdef NOTHREADS
    if(arg.th!=0) {
      cout << "The NT version cannot use threads\n";
      exit(1);
    }
-   #else
-   if(arg.th<0) {
-     cout << "Number of threads cannot be negative\n";
-     exit(1);
-   }
-   #endif   
 }
 
 
@@ -650,12 +638,8 @@ int main(int argc, char** argv)
       if(arg.th==0)
         totChar = process_file(arg,wordFreq);
       else {
-        #ifdef NOTHREADS
         cerr << "Sorry, this is the no-threads executable and you requested " << arg.th << " threads\n";
         exit(EXIT_FAILURE);
-        #else
-        totChar = mt_process_file(arg,wordFreq);
-        #endif
       }
   }
   catch(const std::bad_alloc&) {
