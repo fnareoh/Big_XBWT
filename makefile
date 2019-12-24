@@ -14,7 +14,7 @@ newscanNT.x: newscan.cpp malloc_count.o utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
 newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
-	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lz -lbamtools
+	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lbamtools -lz
 
 
 %.o: %.c %.h
