@@ -17,7 +17,7 @@ void die(const char *s)
 
 int fd_open_aux_file(const char *base, const char *ext, int flags)
 {
-  char *name;
+  char *name = malloc(512);
   int e = asprintf(&name,"%s.%s",base,ext);
   if(e<1) die("asprint error");
   int fd = open(name,flags,00666);
@@ -30,7 +30,7 @@ int fd_open_aux_file(const char *base, const char *ext, int flags)
 // open file named base.ext with mode mode
 FILE *open_aux_file(const char *base, const char *ext, const char *mode)
 {
-  char *name;
+  char *name = malloc(512);
   int e = asprintf(&name,"%s.%s",base,ext);
   if(e<1) die("asprint error");
   FILE *f = fopen(name,mode);
@@ -42,7 +42,7 @@ FILE *open_aux_file(const char *base, const char *ext, const char *mode)
 // open file named base.num.ext with mode mode
 FILE *open_aux_file_num(const char *base, const char *ext, const int num, const char *mode)
 {
-  char *name;
+  char *name = malloc(512);
   int e = asprintf(&name,"%s.%d.%s",base,num,ext);
   if(e<1) die("asprint error");
   FILE *f = fopen(name,mode);
