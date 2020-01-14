@@ -337,6 +337,7 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
     sa_file = open_aux_file(arg.inputFileName.c_str(),EXTSAI,"wb");
 
   // main loop on the chars of the input file
+  cout << "Parsing the genome" << endl;
   int c;
   string line = ""; //storing of a string used for the fasta format
   int index_line = 0; //storing the position in the line
@@ -378,8 +379,8 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
   save_update_word(arg,word,wordFreq,g,true,start_phrase,last_file,sa_file,pos);
 
   assert(pos==krw.tot_char+arg.w);
-
   //Reads parsing
+  cout << "Parsing the reads" << endl;
 
   //open read file
   fnam = arg.ReadsFileName;
@@ -418,13 +419,15 @@ uint64_t process_file(Args& arg, map<uint64_t,word_stats>& wordFreq)
             if (!reader.GetNextAlignment(al)) break;
             pos_read = al.Position;
             read = al.QueryBases;
+            if (read == "" || read == "*") break;
+	    if (pos_read == -1) break;
         }
         #endif
         //starting position of the extended read in the parse
         uint64_t r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(), make_pair(pos_read - arg.w,numeric_limits<uint64_t>::max())) - start_phrase.begin() -1;
         //ending position of the extended read in the parse
         uint64_t r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(), make_pair(pos_read + read.size()-arg.w,numeric_limits<uint64_t>::max())) - start_phrase.begin() -1;
-
+	
         //phrase we are going to extend the read with, at the front and at the end
         string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
         string back_phrase =  wordFreq[start_phrase[r_e_p].second].str;
