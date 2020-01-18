@@ -10,7 +10,7 @@ EXECS_NT=newscanNT.x
 # targets not producing a file declared phony
 .PHONY: all clean tarfile
 
-newscanNT.x: newscan.cpp malloc_count.o utils.o
+newscanNT.x: newscan.cpp utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
 newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
