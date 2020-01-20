@@ -30,3 +30,8 @@ For the read file we support two format:
    reads>
    ```
 
+## Description of the intermediate files
+
+- file.parse
+    - first a parse of the genome, separator (PRIME+1) and a sequence of triples, starting position of the read as 64 bit unsigned int in a parse, parse of a particular read as 64 bit ints, and a separator (PRIME+1) as 64 bit int
+        - position is most likely 1-based
