@@ -8,6 +8,8 @@ by Giovanni Manzini.
 ```
 make newscanNT.x
 ./newscanNT.x data/ref.in data/reads.in
+# For bwtparse
+mkdir build; cd build; cmake ..; make 
 ```
 
 The input format for the reference can be either:
