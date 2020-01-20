@@ -354,9 +354,5 @@ int main() {
     auto occ_file = ofstream(filename + ".occ");
     save_carr(occ,occ_file);
     occ_file.close();
-    // results
-    /*
-        [(36, 0), (65, 2), (66, 3), (67, 4), (68, 0), (67, 6), (68, 0)]
-        [0, 1, 2, 3, 5, 4, 6]
-     */
+
 }
