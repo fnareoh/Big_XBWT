@@ -1,6 +1,32 @@
 //
 // Created by Jan Studený on 15/01/2020.
 //
+/*
+  - Input
+    - file.parse
+    - file.dic
+  - Intermediate
+    - "file.diclast"
+  - Output
+    - file.ilist
+    - file.occ
+    - file.bwlast
+- Steps:
+  - 0. create .diclast from .dic
+    - diclast[i] = dic[i][-w]
+  - 1. from file.parse create a set of triples
+    - the ids can be 0-k_0-1 (genome) and then one by one reads (k_0...k_1-1) (...) (no need to be sorted anyhow because we need to be consistent within the read only)
+    - [(metachar,parent,is_leaf)]
+  - 2. doubling algorithm on a set of "triples"
+    - [(metachar,parent,is_leaf)] -> inverted "eXtended" suffix array (a.k.a. wheeler order)
+  - 3. for each word just output the position using the result from 2. (+ in parallell bwlast as for bwlast[parent] = diclast[me] & "dollars/special character" for uninitialised, end of reads)
+    - vector<vector<int>> multiplicities (for every word where it occurs)
+    - for each word, sort it
+  - 3.5 put to old format
+    -  multiplicites to .ilist .occ
+    - .occ[i] = multiplicities[i].size()
+  - 4. (external) run the pfbwt using the fake .ilist .occ .bwlast
+ */
 
 #include <iostream>
 #include <vector>
@@ -48,7 +74,7 @@ void write_binary(T item,ofstream& stream)  {
  *
  */
 using graph_structure_t = vector<tuple<int64_t,int64_t,bool>>;
-graph_structure_t graph_structure(string filename) {
+graph_structure_t graph_structure(const string& filename) {
     graph_structure_t structure;
     auto parse_filename = filename + ".parse";
     ifstream file (parse_filename, ios::in | ios::binary);
@@ -62,7 +88,7 @@ graph_structure_t graph_structure(string filename) {
         return structure;
     }
     int64_t metachar;
-    bool is_leaf = 0; // genome has "no leaves" (we want exactly one dollar)
+    bool is_leaf = false; // genome has "no leaves" (we want exactly one dollar)
     while(metachar = read_binary(file),metachar != PRIME+1) {
         // reading genome
         if (not file) {
@@ -70,7 +96,7 @@ graph_structure_t graph_structure(string filename) {
             return structure;
         }
         structure.push_back({metachar,i+1,is_leaf});
-        is_leaf = 0;
+        is_leaf = false;
         i++;
     }
     genome_length = i;
@@ -79,12 +105,12 @@ graph_structure_t graph_structure(string filename) {
         uint64_t pos_in_genome = read_binary(file); // I should take its last position
         if (not file) {break;}
         int64_t metachar;
-        bool is_leaf = 1;
+        bool is_leaf = true;
         while(metachar = read_binary(file),metachar != PRIME+1) {
             structure.push_back({metachar,i+1,is_leaf});
             pos_in_genome++; // compensate that I have initial position instead of last position: FIXME
             i++;
-            is_leaf = 0;
+            is_leaf = false;
         }
         // genome is one based now 1 2 3 4 ... i 0
         //pos_in_genome--; // one past end -> end
@@ -114,63 +140,60 @@ void save_carr(T carr, ofstream& stream) {
     }
 }
 
-void prefix_sort(vector<triple>& in,bool total_order,graph_structure_t& graph_structure) {
-    // [parent,metachar,me] -> [root,place_in_xbwt,me]
-    // assumption (get<2> is an increasing sequence)
+void prefix_sort(vector<triple>& in_out, bool total_order, graph_structure_t& graph_structure) {
+    // [parent,metachar,me] -> [root,inverted_suffix_arry_idx,me]
     // assumptions (get<2> is a permutation from 0 to n-1)
-    // assumption (get<2> are ids obtained by DFS traversal)
     // assumptions (get<0> < get<2>)
-    // assumption:
     // time complexity O(nlog^2(n)) which can be easily O(nlogn)
-    int64_t n = in.size();
+    int64_t n = in_out.size();
     // sort them according to their
-    stable_sort(all(in),[](const triple& lhs, const triple& rhs) {
+    stable_sort(all(in_out), [](const triple& lhs, const triple& rhs) {
         return get<2>(lhs) < get<2>(rhs);
     });
     vector<int64_t> order(n,0);
     for(int64_t i=0;i<n;i++) order[i] = i;
     while(true) {
         stable_sort(all(order),[&](const int64_t lhs,const int64_t rhs){
-            auto& l = in[lhs];
-            auto& r = in[rhs];
-            return getPair(l, in) < getPair(r,in);
+            auto& l = in_out[lhs];
+            auto& r = in_out[rhs];
+            return getPair(l, in_out) < getPair(r, in_out);
         });
         pair<int64_t,int64_t> prevpair = {-1,-1};
         int64_t crank = -1;
         bool cont = 0;
         for(int64_t i=0;i<n;i++) {
-            auto& el = in[order[i]];
-            auto p = getPair(el,in);
+            auto& el = in_out[order[i]];
+            auto p = getPair(el, in_out);
             if (prevpair != p) {
                 crank++;
                 prevpair = p;
             }
             get<1>(el) = crank;
-            get<0>(el) = get<0>(in[get<0>(el)]);
+            get<0>(el) = get<0>(in_out[get<0>(el)]);
             if (get<0>(el) > 0) cont = 1;
         }
         if (!cont) {
             break;
         }
-        cout << in << endl;
+        cout << in_out << endl;
     }
     if (total_order) {
         stable_sort(all(order),[&](const int64_t lhs,const int64_t rhs) // should be unnecessary
         {
-            auto& l = in[lhs];
-            auto& r = in[rhs];
+            auto& l = in_out[lhs];
+            auto& r = in_out[rhs];
             return pii{get<1>(l),get<2>(l)} < pii{get<1>(r),get<2>(r)};
         });
         int64_t i=0;
         for(auto& c : order) {
             auto is_leaf = get<2>(graph_structure[c]);
-            get<1>(in[c]) = is_leaf ? -1 : i;
+            get<1>(in_out[c]) = is_leaf ? -1 : i;
             i = is_leaf ? i : i + 1;
         }
     }
 }
 
-/* [(metachar,parent)] -> [place_in_xbwt] */
+/* [(metachar,parent,is_leaf)] -> inverted "eXtended" suffix array (a.k.a. wheeler order) */
 vector<int64_t> doubling_algorithm(graph_structure_t& graph_structure) {
     vector<triple> intermediate;
     vector<int64_t> result(graph_structure.size());
@@ -191,15 +214,15 @@ vector<int64_t> doubling_algorithm(graph_structure_t& graph_structure) {
 
 pair<vector<vector<int64_t>>, string>
 fake_lists(vector<int64_t> &doubling_result, graph_structure_t &graph_structure,
-           string &last, int64_t dictionary_size) {
+           string &diclast, int64_t dictionary_size) {
     vector<vector<int64_t>> multiplicities(dictionary_size+1); // + 1 for dollar word (smallest word)
-    string bwlast = string(last.size(),Dollar); // TODO: Check if dollar works
+    string bwlast = string(diclast.size(), Dollar); // TODO: Check if dollar works
     for(int me=0;me<graph_structure.size();me++) {
         auto& node = graph_structure[me];
         multiplicities[get<metachar>(node)].push_back(doubling_result[get<parent>(node)]);
-        bwlast[get<parent>(node)] = last[me]; // check for correctness
+        bwlast[get<parent>(node)] = diclast[get<metachar>(node)]; // check for correctness
     }
-    multiplicities[0][0] = doubling_result[1]; // only dollar is from the genome
+    multiplicities[0][0] = doubling_result[1]; // the only dollar placed is from the genome
     for(auto& e : multiplicities) {
         sort(all(e));
     }
@@ -218,7 +241,7 @@ carr<> mults_to_occ(vector<vector<int64_t>> multiplicities) {
 }
 
 // multiplicity list transformation
-pair<carr<>,carr<>> mult_list_to_ilist_istart(vector<vector<int64_t>> mult) {
+pair<carr<>,carr<>> mult_list_to_ilist_istart(const vector<vector<int64_t>>& mult) {
     int dwords = mult.size();
     int elems = 0;
     for(auto& e : mult) {
@@ -240,14 +263,14 @@ pair<carr<>,carr<>> mult_list_to_ilist_istart(vector<vector<int64_t>> mult) {
     return {{ilist,elems},{istart,dwords}};
 }
 
-carr<uint8_t> dict_to_old_repr(vector<string> dict) {
+carr<uint8_t> dict_to_old_repr(const vector<string>& dict) {
     int tot_length = 0;
     for(auto& w : dict) {
         tot_length += w.size();
         tot_length++;
     }
     tot_length++;
-    uint8_t* res = new uint8_t[tot_length];
+    auto* res = new uint8_t[tot_length];
     int idx = 0;
     for(auto& w : dict) {
         for(auto& c : w) {
@@ -261,7 +284,7 @@ carr<uint8_t> dict_to_old_repr(vector<string> dict) {
     return {res,tot_length};
 }
 
-vector<string> dict_from_old_repr(string repr) {
+vector<string> dict_from_old_repr(const string& repr) {
     vector<string> dict;
     int i=0;
     stringstream temp_str;
@@ -282,20 +305,20 @@ vector<string> dict_from_old_repr(string repr) {
     return dict;
 }
 
-string get_content(string filename) {
+string get_content(const string& filename) {
     std::ifstream t(filename);
     std::stringstream buffer;
     buffer << t.rdbuf();
     return buffer.str();
 }
 
-void save_content(string filename, string content) {
+void save_content(const string& content,string filename) {
     std::ofstream t(filename);
     t << content;
     t.close();
 }
 
-string get_diclast(string filename,int64_t window_size) {
+string get_diclast(const string& filename,int64_t window_size) {
     auto content = get_content(filename + ".dict");
     auto dictionary = dict_from_old_repr(content);
     cout << dictionary << endl;
