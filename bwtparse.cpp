@@ -333,7 +333,7 @@ string get_diclast(const string& filename,int64_t window_size) {
 
 
 int main() {
-    string filename = "data/mini"; // mini parse contains genome 0 1 2 3  and read 2 3
+    string filename = "data/mini";
     int64_t window_size = 0;
     auto structure = graph_structure(filename);
     cout << structure << endl;
