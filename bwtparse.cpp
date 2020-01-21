@@ -332,8 +332,9 @@ string get_diclast(const string& filename,int64_t window_size) {
 
 
 
-int main() {
-    string filename = "data/mini";
+int main(int argc, char** argv) {
+    assert(argc==2);
+    string filename = argv[1];
     int64_t window_size = 0;
     auto structure = graph_structure(filename);
     cout << structure << endl;
@@ -354,5 +355,4 @@ int main() {
     auto occ_file = ofstream(filename + ".occ");
     save_carr(occ,occ_file);
     occ_file.close();
-
 }

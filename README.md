@@ -10,6 +10,7 @@ make newscanNT.x
 ./newscanNT.x data/ref.in data/reads.in
 # For bwtparse
 mkdir build; cd build; cmake ..; make 
+./bwtparse ../data/mini
 ```
 
 The input format for the reference can be either:
