@@ -1,5 +1,5 @@
 # compilation flags
-CXX_FLAGS=-std=c++11 -O3 -Wall -Wextra -g
+CXX_FLAGS=-std=c++17 -O3 -Wall -Wextra -g -lstdc++
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
 BAM_FLAGS=-I $(HOME)/include/bamtools/ -L $(HOME)/lib/
@@ -16,11 +16,8 @@ newscanNT.x: newscan.cpp utils.o
 newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
 	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lbamtools -lz
 
-bwtparse: bwtparse.c gsa/gsacak.o utils.o malloc_count.o
-	$(CC) $(CFLAGS) -o $@ $^ -ldl
-
-bwtparse64: bwtparse.c gsa/gsacak64.o utils.o malloc_count.o
-	$(CC) $(CFLAGS) -o $@ $^ -ldl -DM64
+bwtparse: bwtparse.cpp malloc_count.o utils.o
+	$(CC) $(CXX_FLAGS) -o $@ $^ -ldl
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
