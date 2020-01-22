@@ -16,6 +16,11 @@ newscanNT.x: newscan.cpp utils.o
 newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
 	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lbamtools -lz
 
+bwtparse: bwtparse.c gsa/gsacak.o utils.o malloc_count.o
+	$(CC) $(CFLAGS) -o $@ $^ -ldl
+
+bwtparse64: bwtparse.c gsa/gsacak64.o utils.o malloc_count.o
+	$(CC) $(CFLAGS) -o $@ $^ -ldl -DM64
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
