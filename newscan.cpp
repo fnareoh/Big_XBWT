@@ -265,6 +265,7 @@ static void save_update_word(Args &arg, string &w,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
                              FILE *last, FILE *sa, uint64_t &pos) {
   size_t minsize = arg.w;
+  // cout << "pos: " << pos << " w size: " << w.size() << endl;
   assert(pos == 0 || w.size() > minsize);
   if (w.size() <= minsize)
     return;
@@ -335,7 +336,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 
   // open the 1st pass parsing file
   FILE *g = open_aux_file(arg.inputFileName.c_str(), EXTPARS0, "wb");
-  vector<pair<uint64_t, uint64_t>> start_phrase;
+  vector<pair<uint64_t, uint64_t>>
+      start_phrase; // (Starting position of a phrase, hash of this phrase)
   FILE *sa_file = NULL, *last_file = NULL;
   // open output file containing the char at position -(w+1) of each word
   last_file = open_aux_file(arg.inputFileName.c_str(), EXTLST, "wb");
@@ -394,6 +396,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
                    sa_file, pos);
 
   assert(pos == krw.tot_char + arg.w);
+  cout << "Length of the parsed reference: " << start_phrase.size() << endl;
   // Reads parsing
   cout << "Parsing the reads" << endl;
 
@@ -446,34 +449,38 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     // starting position of the extended read in the parse
     uint64_t r_s_p = 0;
     uint64_t r_e_p = 0;
-    if (pos_read > (uint64_t) arg.w){
-        r_s_p= upper_bound(start_phrase.begin(), start_phrase.end(),
-                                 make_pair(pos_read - arg.w,
-                                           numeric_limits<uint64_t>::max())) -
-                     start_phrase.begin() - 1;
+    if (pos_read > (uint64_t)arg.w) {
+      r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(),
+                          make_pair(pos_read - arg.w,
+                                    numeric_limits<uint64_t>::max())) -
+              start_phrase.begin() - 1;
     }
     // ending position of the extended read in the parse
-    if (pos_read + read.size() > (uint64_t) arg.w){
-        r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
-                                 make_pair(pos_read + read.size() - arg.w,
-                                           numeric_limits<uint64_t>::max())) -
-                     start_phrase.begin() - 1;
+    if (pos_read + read.size() > (uint64_t)arg.w) {
+      r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
+                          make_pair(pos_read + read.size() - arg.w,
+                                    numeric_limits<uint64_t>::max())) -
+              start_phrase.begin() - 1;
     }
 
+    assert(r_s_p < start_phrase.size());
+    assert(r_e_p < start_phrase.size());
     // phrase we are going to extend the read with, at the front and at the end
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
 
     // The extended read that will be parses in to phrases
     string read_extanded =
-        front_phrase.substr(0, pos_read +1 - start_phrase[r_s_p].first) + read +
-        back_phrase.substr(pos_read + read.size() + 1 - start_phrase[r_e_p].first);
+        front_phrase.substr(0, pos_read + 1 - start_phrase[r_s_p].first) +
+        read +
+        back_phrase.substr(pos_read + read.size() + 1 -
+                           start_phrase[r_e_p].first);
 
-    // cout << pos_read << " "  << r_s_p <<  " " << r_e_p <<  " " <<
+    // cout << pos_read << " " << r_s_p << " " << r_e_p << " "
     // start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl <<
     // read << endl << front_phrase << endl << back_phrase << endl <<
     // read_extanded << endl; //print for begug
-    //cout << r_s_p << " " <<   read_extanded << endl; //print for begug
+    // cout << r_s_p << " " << read_extanded << endl; // print for begug
 
     // Mark a sepatation in the parsing
     uint64_t separator = PRIME + 1;
@@ -487,8 +494,17 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     // Write the parsing of the read
     // init empty KR window: constructor only needs window size
     krw.reset();
-    word = "";
     uint64_t i = 0;
+    pos = start_phrase[r_s_p].first;
+    if (pos == 0) {
+      word = "";
+    } else {
+      word = read_extanded.substr(0, arg.w);
+      while ((long)i < (long)arg.w) {
+        krw.addchar(read_extanded[i]);
+        i++;
+      }
+    }
     // cout << "read_extanded size "<< read_extanded.size() << endl;
     while (i < read_extanded.size()) {
       word.append(1, read_extanded[i]);
@@ -504,8 +520,13 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     }
     // cout << "word: " << word << endl;
     // cout << "word size(): " << word.size() << endl;
-    save_update_word(arg, word, wordFreq, g, true, start_phrase, last_file,
-                     sa_file, pos);
+    if (!((start_phrase[r_s_p].first == 0 && pos + 1 == read_extanded.size()) ||
+          (pos - start_phrase[r_s_p].first + arg.w == read_extanded.size()))) {
+      // If we did not finished on a triggering substring, we add the last
+      // phrase.
+      save_update_word(arg, word, wordFreq, g, false, start_phrase, last_file,
+                       sa_file, pos);
+    }
   }
 
   // close input and output files
@@ -538,8 +559,8 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
   for (auto x :
        sortedDict) { // *x is the string representing the dictionary word
     const char *word = (*x).data(); // current dictionary word
-    //cout << word << std::endl;
-    size_t len = (*x).size();       // offset and length of word
+    // cout << word << std::endl;
+    size_t len = (*x).size(); // offset and length of word
     assert(len > (size_t)arg.w);
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);
@@ -585,11 +606,11 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
       die("Unexpected parse EOF");
     if (hash == separator) {
       word_int_t sep_newp = wfreq.size() + 1;
-      cout << "sep_newp: " << sep_newp << endl;
+      // cout << "sep_newp: " << sep_newp << endl;
       s = fwrite(&sep_newp, sizeof(sep_newp), 1, newp);
       if (s != 1)
         die("Error writing to new parse file");
-      //Read the allignment and rewrite it the same way
+      // Read the allignment and rewrite it the same way
       s = mfread(&hash, sizeof(hash), 1, moldp);
       // cout << endl << hash << " # "; // output for debug
       if (fwrite(&hash, sizeof(hash), 1, newp) != 1)
