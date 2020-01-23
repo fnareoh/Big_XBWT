@@ -543,12 +543,12 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 }
 
 // function used to compare two string pointers
-bool pstringCompare(const string *a, const string *b) { return *a >= *b; }
+bool pstringCompare(const string *a, const string *b) { return *a <= *b; }
 
 // given the sorted dictionary and the frequency map write the dictionary and
 // occ files also compute the 1-based rank for each hash
 void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
-                  vector<const string *> &sortedDict) {
+                  vector<string *> &sortedDict) {
   assert(sortedDict.size() == wfreq.size());
   FILE *fdict, *focc = NULL;
   // open dictionary and occ files
@@ -558,9 +558,11 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
   word_int_t wrank = 1; // current word rank (1 based)
   for (auto x :
        sortedDict) { // *x is the string representing the dictionary word
-    const char *word = (*x).data(); // current dictionary word
+    char *word = (*x).data();  // current dictionary word
+    size_t len = (*x).size();  // offset and length of word
+    reverse(word, word + len); // Reverse back so that they are just sorted in
+                               // colexicographic order
     // cout << word << std::endl;
-    size_t len = (*x).size(); // offset and length of word
     assert(len > (size_t)arg.w);
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);
@@ -750,7 +752,7 @@ int main(int argc, char **argv) {
   // -------------- second pass
   start_wc = time(NULL);
   // create array of dictionary words
-  vector<const string *> dictArray;
+  vector<string *> dictArray;
   dictArray.reserve(totDWord);
   // fill array
   uint64_t sumLen = 0;
@@ -758,6 +760,9 @@ int main(int argc, char **argv) {
   for (auto &x : wordFreq) {
     sumLen += x.second.str.size();
     totWord += x.second.occ;
+    reverse(
+        x.second.str.begin(),
+        x.second.str.end()); // reverse so that we sort in colexicographic order
     dictArray.push_back(&x.second.str);
   }
   assert(dictArray.size() == totDWord);
