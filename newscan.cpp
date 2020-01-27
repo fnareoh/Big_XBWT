@@ -49,10 +49,6 @@
  * lexicographic rank (ie its position in D). We assume the number of distinct
  * words is at most 2^32-1, so the size is 4p bytes
  *
- * file.last
- * containing the character in position w+1 from the end for each dictionary
- * word Size: p
- *
  * file.sai (if option -s is given on the command line)
  * containing the ending position +1 of each parsed word in the original
  * text written using IBYTES bytes for each entry (IBYTES defined in utils.h)
@@ -67,12 +63,6 @@
  * of BWT positions where that word appears (ie i\in ilist(w) <=> BWT[i]=w).
  * There is also an entry for the EOF word which is not in the dictionary
  * but is assumed to be the smallest word.
- *
- * In addition, bwtparse permutes file.last according to
- * the BWT permutation and generates file.bwlast such that file.bwlast[i]
- * is the char from P[SA[i]-2] (if SA[i]==0 , BWT[i]=0 and file.bwlast[i]=0,
- * if SA[i]==1, BWT[i]=P[0] and file.bwlast[i] is taken from P[n-1], the last
- * word in the parsing).
  *
  * If the option -s is given to bwtparse, it permutes file.sai according
  * to the BWT permutation and generate file.bwsai using again IBYTES
@@ -240,7 +230,7 @@ static void save_update_word(Args &arg, string &w,
                              map<uint64_t, word_stats> &freq,
                              FILE *tmp_parse_file, bool is_ref,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
-                             FILE *last, FILE *sa, uint64_t &pos);
+                             FILE *sa, uint64_t &pos);
 
 // compute 64-bit KR hash of a string
 // to avoid overflows in 64 bit aritmethic the prime is taken < 2**55
@@ -263,7 +253,7 @@ static void save_update_word(Args &arg, string &w,
                              map<uint64_t, word_stats> &freq,
                              FILE *tmp_parse_file, bool is_ref,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
-                             FILE *last, FILE *sa, uint64_t &pos) {
+                             FILE *sa, uint64_t &pos) {
   size_t minsize = arg.w;
   // cout << "pos: " << pos << " w size: " << w.size() << endl;
   assert(pos == 0 || w.size() > minsize);
@@ -301,14 +291,12 @@ static void save_update_word(Args &arg, string &w,
     }
   }
 
-  // update last/sa files
-  // output char w+1 from the end
-  if (fputc(w[w.size() - minsize - 1], last) == EOF)
-    die("Error writing to .last file");
+  // update sa files
   // compute ending position +1 of current word and write it to sa file
   // pos is the ending position+1 of the previous word and is updated here
   if (pos == 0)
-    pos = w.size() - 1; // -1 is for the initial $ of the first word
+    pos = w.size() -
+          minsize; // - minsize is for the w initials $ of the first word
   else
     pos += w.size() - minsize;
   if (sa)
@@ -338,9 +326,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   FILE *g = open_aux_file(arg.inputFileName.c_str(), EXTPARS0, "wb");
   vector<pair<uint64_t, uint64_t>>
       start_phrase; // (Starting position of a phrase, hash of this phrase)
-  FILE *sa_file = NULL, *last_file = NULL;
-  // open output file containing the char at position -(w+1) of each word
-  last_file = open_aux_file(arg.inputFileName.c_str(), EXTLST, "wb");
+  FILE *sa_file = NULL;
   // if requested open file containing the ending position+1 of each word
   if (arg.SAinfo)
     sa_file = open_aux_file(arg.inputFileName.c_str(), EXTSAI, "wb");
@@ -354,9 +340,10 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
                     // used for computing sa_info
   assert(IBYTES <=
          sizeof(pos)); // IBYTES bytes of pos are written to the sa info file
-  // init first word in the parsing with a Dollar char
+  // init first word in the parsing with w Dollar char (s we don't forget any
+  // valuable char at the last step
   string word("");
-  word.append(1, Dollar);
+  word.append(arg.w, Dollar);
   // init empty KR window: constructor only needs window size
   KR_window krw(arg.w);
   while (true) {
@@ -385,17 +372,14 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       // end of word, save it and write its full hash to the output file
       // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" <<
       // krw.get_window() << ">" <<  endl;
-      save_update_word(arg, word, wordFreq, g, true, start_phrase, last_file,
-                       sa_file, pos);
+      save_update_word(arg, word, wordFreq, g, true, start_phrase, sa_file,
+                       pos);
     }
   }
-  // virtually add w null chars at the end of the file and add the last word in
-  // the dict
-  word.append(arg.w, Dollar);
-  save_update_word(arg, word, wordFreq, g, true, start_phrase, last_file,
-                   sa_file, pos);
+  // add the last word in the dict
+  save_update_word(arg, word, wordFreq, g, true, start_phrase, sa_file, pos);
 
-  assert(pos == krw.tot_char + arg.w);
+  assert(pos == krw.tot_char);
   cout << "Length of the parsed reference: " << start_phrase.size() << endl;
   // Reads parsing
   cout << "Parsing the reads" << endl;
@@ -480,7 +464,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     // start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl <<
     // read << endl << front_phrase << endl << back_phrase << endl <<
     // read_extanded << endl; //print for begug
-    // cout << r_s_p << " " << read_extanded << endl; // print for begug
+    cout << r_s_p << " " << read_extanded << endl; // print for begug
 
     // Mark a sepatation in the parsing
     uint64_t separator = PRIME + 1;
@@ -513,8 +497,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         // end of word, save it and write its full hash to the output file
         // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" <<
         // krw.get_window() << ">" <<  endl;
-        save_update_word(arg, word, wordFreq, g, false, start_phrase, last_file,
-                         sa_file, pos);
+        save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
+                         pos);
       }
       i++;
     }
@@ -524,8 +508,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
           (pos - start_phrase[r_s_p].first + arg.w == read_extanded.size()))) {
       // If we did not finished on a triggering substring, we add the last
       // phrase.
-      save_update_word(arg, word, wordFreq, g, false, start_phrase, last_file,
-                       sa_file, pos);
+      save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
+                       pos);
     }
   }
 
@@ -533,9 +517,6 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   if (sa_file)
     if (fclose(sa_file) != 0)
       die("Error closing SA file");
-  if (last_file)
-    if (fclose(last_file) != 0)
-      die("Error closing last file");
   if (fclose(g) != 0)
     die("Error closing parse file");
   f.close();
