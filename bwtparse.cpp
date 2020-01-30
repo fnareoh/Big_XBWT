@@ -99,6 +99,7 @@ graph_structure_t graph_structure(const string &filename,
     get<2>(structure.back()) = true; // the last one is a leaf
     // cout << "pos_in_genome, genome length: " << pos_in_genome << " "
     //     << genome_length << endl;
+    i++;
     if (file.eof())
       break;
   }
@@ -186,66 +187,79 @@ int main(int argc, char *argv[]) {
   // read parse file
   uint32_t alphabet_parse = 0;
   auto structure = graph_structure(filename, alphabet_parse);
-  // cout << "structure: " << structure << endl;
+  cout << "structure: " << structure << endl;
   cout << "Compute wheeler order and then SA via doubling algorithm" << endl;
   vector<uint64_t> sa = doubling_algorithm(structure);
-  // cout << "sa: " << sa << endl;
+  cout << "sa: " << sa << endl;
   // inversing the graph so we can build a BWT
   cout << "Building the reverse graph for the BWT" << endl;
   uint64_t n = structure.size();
   vector<vector<uint32_t>> children_char(n + 1);
-  uint64_t i = 1;
   for (auto &e : structure) {
     // fill with the chars of the children
     children_char[get<1>(e)].push_back(get<0>(e));
-    i++;
   }
+  vector<vector<uint32_t>> children_full_word(alphabet_parse + 1);
+  children_full_word[0] = children_char[0];
+  for (uint64_t i = 1; i < n + 1; i++) {
+    // link to the previous word
+    if (get<1>(structure[i]) > 0) {
+      auto e = structure[get<1>(structure[i]) - 1];
+      cout << i - 1 << " " << e << endl;
+      children_full_word[get<0>(e)].insert(children_full_word[get<0>(e)].end(),
+                                           children_char[i].begin(),
+                                           children_char[i].end());
+    }
+  }
+  cout << "structure: " << structure << endl;
+  cout << children_char << endl;
+  cout << children_full_word << endl;
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
+  BWT.push_back(0); // empty word
   for (uint64_t i = 0; i < n + 1; i++) {
     for (auto &c : children_char[sa[i]]) {
       BWT.push_back(c);
     }
   }
-  // cout << "BWT: " << BWT << endl;
+  cout << "BWT: " << BWT << endl;
   // Creating the F vector
   ifstream file_occ(filename + ".occ", ios::in | ios::binary);
-  vector<uint32_t> occ(alphabet_parse, 0);
-  for (uint32_t i = 0; i < alphabet_parse; i++)
-    occ[i] = read_binary(
-        file_occ); // Warning: this is 0 based and the chars are 1 based
-  // cout << "occ: " << occ << endl;
+  vector<uint32_t> occ(alphabet_parse + 1, 0);
+  for (uint32_t i = 1; i < alphabet_parse + 1; i++)
+    occ[i] = read_binary(file_occ);
+  occ[0] = 1; // empty word
+  cout << "occ: " << occ << endl;
   vector<uint32_t> F(alphabet_parse + 1, 0);
   for (uint32_t i = 1; i <= alphabet_parse; i++)
     F[i] = F[i - 1] + occ[i - 1];
   // cout << "F: " << F << endl;
   vector<uint32_t> ilist(n + 1, 0);
-  for (uint32_t i = 0; i < n; i++) {
-    ilist[F[BWT[i] - 1]++] = i;
-    occ[BWT[i] - 1]--;
+  for (uint32_t i = 0; i <= n; i++) {
+    ilist[F[BWT[i]]++] = i;
+    occ[BWT[i]]--;
   }
-  // cout << "ilist: " << ilist << endl;
+  cout << "ilist: " << ilist << endl;
 
-  for (uint32_t i = 0; i < alphabet_parse; i++) {
+  for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     assert(occ[i] == 0);
   }
 
-  cout << "Saving .children and .ilist files" << endl;
-  // Saving children
-  auto children_file = ofstream(filename + ".children");
-  uint64_t children_sep = n + 1;
-  for (uint64_t i = 0; i < n + 1; i++) {
+  cout << "Saving .full_children and .ilist files" << endl;
+  // Saving children ordered by sa
+  auto children_file = ofstream(filename + ".full_children");
+  uint32_t children_sep = alphabet_parse + 1;
+  for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     write_binary(children_sep, children_file);
-    write_binary(i, children_file);
-    for (auto &c : children_char[i]) {
+    for (auto &c : children_full_word[i]) {
       write_binary(c, children_file);
     }
   }
   children_file.close();
-  cout << ".children file writen and closed" << endl;
+  cout << ".full_children file writen and closed" << endl;
   // Saving ilist
   auto ilist_file = ofstream(filename + ".ilist");
-  for (uint32_t i = 0; i < n; i++)
+  for (uint32_t i = 0; i < n + 1; i++)
     write_binary(ilist[i], ilist_file);
   ilist_file.close();
   cout << ".ilist file writen and closed" << endl;

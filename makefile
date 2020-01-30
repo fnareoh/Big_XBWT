@@ -19,6 +19,10 @@ newscanNT_BAM_READER.x: newscan.cpp malloc_count.o utils.o
 bwtparse: bwtparse.cpp malloc_count.o utils.o
 	$(CC) $(CXX_FLAGS) -o $@ $^ -ldl
 
+# prefix free BWT construction
+pfbwtNT.x: pfbwt.cpp gsa/gsacak.o utils.o malloc_count.o
+	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl -DNOTHREADS
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 

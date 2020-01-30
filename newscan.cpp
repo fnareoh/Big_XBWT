@@ -366,6 +366,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     }
     if (!is_fasta && ((c = f.get()) == EOF))
       break;
+    if (c == '\n')
+      continue;
     word.append(1, c);
     uint64_t hash = krw.addchar(c);
     if (hash % arg.p == 0) {
@@ -431,40 +433,39 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     }
 #endif
     // starting position of the extended read in the parse
-    uint64_t r_s_p = 0;
-    uint64_t r_e_p = 0;
-    if (pos_read > (uint64_t)arg.w) {
-      r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(),
-                          make_pair(pos_read - arg.w,
-                                    numeric_limits<uint64_t>::max())) -
-              start_phrase.begin() - 1;
-    }
-    // ending position of the extended read in the parse
-    if (pos_read + read.size() > (uint64_t)arg.w) {
-      r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
-                          make_pair(pos_read + read.size() - arg.w,
-                                    numeric_limits<uint64_t>::max())) -
-              start_phrase.begin() - 1;
-    }
+    pos_read += arg.w; // account for the $ at the begining
+    uint64_t r_s_p = upper_bound(start_phrase.begin(), start_phrase.end(),
+                                 make_pair(pos_read - arg.w,
+                                           numeric_limits<uint64_t>::max())) -
+                     start_phrase.begin() - 1;
+    uint64_t r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
+                                 make_pair(pos_read + read.size() - arg.w,
+                                           numeric_limits<uint64_t>::max())) -
+                     start_phrase.begin() - 1;
 
     assert(r_s_p < start_phrase.size());
-    assert(r_e_p < start_phrase.size());
     // phrase we are going to extend the read with, at the front and at the end
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
 
     // The extended read that will be parses in to phrases
     string read_extanded =
-        front_phrase.substr(0, pos_read + 1 - start_phrase[r_s_p].first) +
-        read +
-        back_phrase.substr(pos_read + read.size() + 1 -
-                           start_phrase[r_e_p].first);
+        front_phrase.substr(0, pos_read - start_phrase[r_s_p].first) + read +
+        back_phrase.substr(pos_read + read.size() - start_phrase[r_e_p].first);
 
-    // cout << pos_read << " " << r_s_p << " " << r_e_p << " "
-    // start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first << endl <<
-    // read << endl << front_phrase << endl << back_phrase << endl <<
-    // read_extanded << endl; //print for begug
-    cout << r_s_p << " " << read_extanded << endl; // print for begug
+    /* cout << pos_read << " " << r_s_p << " " << start_phrase[r_s_p].first <<
+    endl
+         << read << endl
+         << front_phrase << endl;
+    for (auto c : read_extanded) {
+      if (c == Dollar)
+        cout << "$";
+      else
+        cout << c;
+    }
+    cout << endl;*/
+    cout << start_phrase[r_s_p].first << " " << read_extanded.substr(10)
+         << endl; // print for begug
 
     // Mark a sepatation in the parsing
     uint64_t separator = PRIME + 1;
@@ -541,13 +542,14 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
        sortedDict) { // *x is the string representing the dictionary word
     char *word = (*x).data();  // current dictionary word
     size_t len = (*x).size();  // offset and length of word
-    reverse(word, word + len); // Reverse back so that they are just sorted in
-                               // colexicographic order
-    // cout << word << std::endl;
+    reverse(word, word + len); // Reverse back to get the hash
     assert(len > (size_t)arg.w);
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);
     assert(wf.occ > 0);
+    // Reverse back to write the words in reverse in the dict.
+    reverse(word, word + len);
+    cout << wrank << ": " << word << endl;
     size_t s = fwrite(word, 1, len, fdict);
     if (s != len)
       die("Error writing to DICT file");
@@ -577,7 +579,7 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
   vector<occ_int_t> occ(wfreq.size() + 1, 0); // ranks are zero based
   uint64_t hash;
   uint64_t separator = PRIME + 1;
-  word_int_t alphabet_parse = wfreq.size();
+  uint32_t alphabet_parse = wfreq.size();
   size_t s = fwrite(&alphabet_parse, sizeof(alphabet_parse), 1, newp);
   if (s != 1)
     die("Error writing to new parse file");
@@ -588,19 +590,19 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
     if (s != 1)
       die("Unexpected parse EOF");
     if (hash == separator) {
-      word_int_t sep_newp = wfreq.size() + 1;
+      uint32_t sep_newp = wfreq.size() + 1;
       // cout << "sep_newp: " << sep_newp << endl;
       s = fwrite(&sep_newp, sizeof(sep_newp), 1, newp);
       if (s != 1)
         die("Error writing to new parse file");
       // Read the allignment and rewrite it the same way
       s = mfread(&hash, sizeof(hash), 1, moldp);
-      // cout << endl << hash << " # "; // output for debug
+      cout << endl << hash << " # "; // output for debug
       if (fwrite(&hash, sizeof(hash), 1, newp) != 1)
         die("Error writing to new parse file");
     } else {
-      word_int_t rank = wfreq.at(hash).rank;
-      // cout << rank << " "; // output for debug
+      uint32_t rank = wfreq.at(hash).rank;
+      cout << rank << " "; // output for debug
       occ[rank]++;
       s = fwrite(&rank, sizeof(rank), 1, newp);
       if (s != 1)
@@ -741,9 +743,8 @@ int main(int argc, char **argv) {
   for (auto &x : wordFreq) {
     sumLen += x.second.str.size();
     totWord += x.second.occ;
-    reverse(
-        x.second.str.begin(),
-        x.second.str.end()); // reverse so that we sort in colexicographic order
+    // reverse so that we sort in colexicographic order
+    reverse(x.second.str.begin(), x.second.str.end());
     dictArray.push_back(&x.second.str);
   }
   assert(dictArray.size() == totDWord);
