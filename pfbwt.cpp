@@ -104,8 +104,6 @@ struct SeqId {
 
 uint8_t last_char(Args &arg, uint32_t word, vector<string> dict_word) {
   uint8_t res = dict_word[word][dict_word[word].length() - arg.w - 1];
-  cout << "word: " << word + 1 << " " << dict_word[word] << endl;
-  cout << res << endl;
   return res;
 }
 
@@ -187,13 +185,9 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // ----- simple case: the suffix is a full word
     if (sa[i] == 0 || d[sa[i] - 1] == EndOfWord) {
       full_words++;
-      cout << "i, sa[i]: " << i << " " << sa[i] << endl;
-      cout << "full word: " << seqid << endl;
       for (uint32_t w : children[seqid + 1]) {
         // compute next bwt char
         uint8_t nextbwt = last_char(arg, w - 1, dict_word);
-        cout << "char: easycase 1 " << hard_bwts + easy_bwts << " " << nextbwt
-             << endl;
         // in any case output BWT char
         if (fputc(nextbwt, fbwt) == EOF)
           die("BWT write error 0");
@@ -209,7 +203,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     /*cout << "seqid, char: " << seqid << ", " << d[sa[i] - 1] << endl;
     cout << "next: " << next << endl;
     cout << "lcp[next]: " << lcp[next] << endl;*/
-    cout << "suffixLen: " << suffixLen << endl;
     while (next < dsize && lcp[next] >= suffixLen) {
       assert(lcp[next] ==
              suffixLen); // the lcp cannot be greater than suffixLen
@@ -223,7 +216,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         id2merge.push_back(seqid);             // sequence to consider
         char2write.push_back(d[sa[next] - 1]); // corresponding char
         next++;
-        cout << suffixLen << " =<? " << lcp[next] << endl;
       } else
         break;
     }
@@ -572,36 +564,6 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
   // EndOfWord symbols are in position order, so the last is d[dsize-2]
   assert(sa[dwords] == (unsigned long)dsize - 2);
 
-  cout << "start_dict" << endl;
-  for (long i = 0; i < dsize; i++) {
-    if (d[i] == Dollar)
-      cout << "$";
-    else if (d[i] == EndOfWord)
-      cout << "#" << endl;
-    else if (d[i] == EndOfDict)
-      cout << "@" << endl;
-    else
-      cout << d[i];
-  }
-  cout << "end_dict" << endl;
-  for (long i = 0; i < dsize; i++)
-    if (sa[i] > 0 && d[sa[i] - 1] == EndOfWord)
-      cout << i << " " << sa[i] << endl;
-  /*for (long i = 0; i < dsize; i++)
-    cout << lcp[i] << " ";
-  cout << endl;*/
-  // there are wsize $ symbols:
-  // one at the beginning of the first word, wsize at the end of the last word
-  // for (long i = 0; i < w; i++)
-  //  assert(d[sa[i + dwords + 1]] == Dollar);
-  // in sa[dwords+w+1] we have the first word in the parsing since that $ is the
-  // lex. larger
-  // assert(d[0] == Dollar);
-  // assert(sa[dwords + w + 1] == 0);
-  // assert(d[sa[dwords + w + 2]] >
-  //       Dollar); // end of Dollar chars in the first column
-  // assert(lcp[dwords + w + 2] == 0);
-  // copy sa and lcp address
   *sap = sa;
   *lcpp = lcp;
 }
@@ -619,15 +581,11 @@ static void fwrite_chars_same_suffix(vector<uint32_t> &id2merge,
   for (size_t i = 1; (i < numwords) && samechar; i++)
     samechar = (char2write[i - 1] == char2write[i]);
   if (samechar) {
-    cout << "samechar!" << endl;
     for (size_t i = 0; i < numwords; i++) {
       uint32_t s = id2merge[i];
-      cout << "word: " << s << endl;
       for (long j = istart[s]; j < istart[s + 1]; j++) {
         if (fputc(char2write[0], fbwt) == EOF)
           die("BWT write error 1");
-        cout << "char: easycase 2 " << hard_bwts + easy_bwts << " "
-             << char2write[0] << endl;
         easy_bwts++;
       }
     }
@@ -642,8 +600,6 @@ static void fwrite_chars_same_suffix(vector<uint32_t> &id2merge,
     while (heap.size() > 0) {
       // output char for the top of the heap
       SeqId s = heap.front();
-      cout << "char: hardcase " << hard_bwts + easy_bwts << " " << s.char2write
-           << endl;
       if (fputc(s.char2write, fbwt) == EOF)
         die("BWT write error 2");
       hard_bwts += 1;

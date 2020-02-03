@@ -77,7 +77,7 @@ graph_structure_t graph_structure(const string &filename,
   // genome is zero based 0 1 2 3 4 ... i
   uint64_t genome_length = i;
   get<2>(structure.back()) = true; // the last one is a leaf
-  cout << "genome_length: " << genome_length << endl;
+  cout << "genome_parse_length: " << genome_length << endl;
   i++; // final node of the genome
 
   // Parsing the reads
@@ -187,10 +187,10 @@ int main(int argc, char *argv[]) {
   // read parse file
   uint32_t alphabet_parse = 0;
   auto structure = graph_structure(filename, alphabet_parse);
-  cout << "structure: " << structure << endl;
+  // cout << "structure: " << structure << endl;
   cout << "Compute wheeler order and then SA via doubling algorithm" << endl;
   vector<uint64_t> sa = doubling_algorithm(structure);
-  cout << "sa: " << sa << endl;
+  // cout << "sa: " << sa << endl;
   // inversing the graph so we can build a BWT
   cout << "Building the reverse graph for the BWT" << endl;
   uint64_t n = structure.size();
@@ -205,15 +205,13 @@ int main(int argc, char *argv[]) {
     // link to the previous word
     if (get<1>(structure[i]) > 0) {
       auto e = structure[get<1>(structure[i]) - 1];
-      cout << i - 1 << " " << e << endl;
       children_full_word[get<0>(e)].insert(children_full_word[get<0>(e)].end(),
                                            children_char[i].begin(),
                                            children_char[i].end());
     }
   }
-  cout << "structure: " << structure << endl;
-  cout << children_char << endl;
-  cout << children_full_word << endl;
+  // cout << children_char << endl;
+  // cout << children_full_word << endl;
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
   BWT.push_back(0); // empty word
@@ -222,14 +220,14 @@ int main(int argc, char *argv[]) {
       BWT.push_back(c);
     }
   }
-  cout << "BWT: " << BWT << endl;
+  // cout << "BWT: " << BWT << endl;
   // Creating the F vector
   ifstream file_occ(filename + ".occ", ios::in | ios::binary);
   vector<uint32_t> occ(alphabet_parse + 1, 0);
   for (uint32_t i = 1; i < alphabet_parse + 1; i++)
     occ[i] = read_binary(file_occ);
   occ[0] = 1; // empty word
-  cout << "occ: " << occ << endl;
+  // cout << "occ: " << occ << endl;
   vector<uint32_t> F(alphabet_parse + 1, 0);
   for (uint32_t i = 1; i <= alphabet_parse; i++)
     F[i] = F[i - 1] + occ[i - 1];
@@ -239,7 +237,7 @@ int main(int argc, char *argv[]) {
     ilist[F[BWT[i]]++] = i;
     occ[BWT[i]]--;
   }
-  cout << "ilist: " << ilist << endl;
+  // cout << "ilist: " << ilist << endl;
 
   for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     assert(occ[i] == 0);
