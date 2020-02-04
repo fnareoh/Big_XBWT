@@ -81,7 +81,7 @@ class Suffix {
         bool operator<(const Suffix & other) const {
             nb_comparison++;
             if (int(((float)nb_comparison / estimated_nb_comparison)*100) != last_percent ){
-                std::cout << int(((float) nb_comparison / estimated_nb_comparison)*100) << "%" << std::endl;
+                //std::cout << int(((float) nb_comparison / estimated_nb_comparison)*100) << "%" << std::endl;
                 last_percent = int(((float)nb_comparison / estimated_nb_comparison)*100);
             }
             int i = 0;

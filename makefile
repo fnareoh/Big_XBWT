@@ -34,3 +34,6 @@ tarfile:
 
 clean:
 	rm -f $(EXECS)  *.o gsa/*.o
+
+clean_all:
+	rm -f $(EXECS)  *.o gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.bwt

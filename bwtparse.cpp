@@ -199,9 +199,10 @@ int main(int argc, char *argv[]) {
     // fill with the chars of the children
     children_char[get<1>(e)].push_back(get<0>(e));
   }
+  // cout << children_char << endl;
   vector<vector<uint32_t>> children_full_word(alphabet_parse + 1);
   children_full_word[0] = children_char[0];
-  for (uint64_t i = 1; i < n + 1; i++) {
+  for (uint64_t i = 1; i < n; i++) {
     // link to the previous word
     if (get<1>(structure[i]) > 0) {
       auto e = structure[get<1>(structure[i]) - 1];
@@ -210,7 +211,6 @@ int main(int argc, char *argv[]) {
                                            children_char[i].end());
     }
   }
-  // cout << children_char << endl;
   // cout << children_full_word << endl;
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
