@@ -31,6 +31,7 @@ For **the read file** we support two format:
    library that you need to have installed in you home. The file name needs to
    end by ".bam" and then the usage of the `newscan` step becomes
    ```
+   make make newscan_BAM_READER.x
    ./newscan_BAM_READER.x <input file for the reference> <input file for the
    reads>
    ```
