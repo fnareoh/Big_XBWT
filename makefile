@@ -8,7 +8,7 @@ EXECS=newscan.x newscan_BAM_READER.x newscan_extended.x bwtparse.x pfbwt.x
 # targets not producing a file declared phony
 .PHONY: all clean tarfile
 
-all: $(EXECS)
+all: newscan.x bwtparse.x pfbwt.x
 
 newscan.x: newscan.cpp utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
@@ -28,9 +28,6 @@ pfbwt.x: pfbwt.cpp gsa/gsacak.o utils.o malloc_count.o
 
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
-
-tarfile:
-		tar -zcf bigbwt.tgz bigbwt newscan.[ch]pp pscan.[ch]pp pfbwt.cpp pfthreads.hpp simplebwt.c bwtparse.c unparse.c remap.c makefile utils.[ch] xerrors.[ch] f2s.py gsa/gsacak.[ch] gsa/LICENSE gsa/README.md malloc_count.[ch]
 
 clean:
 	rm -f $(EXECS)  *.o gsa/*.o

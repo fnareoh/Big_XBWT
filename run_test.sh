@@ -10,6 +10,7 @@ READS=(data/small_reads.in data/medium_reads.in data/reads.in)
 
 
 make all
+make newscan_extended.x
 g++ test/bwt.cpp -o test/xbwt_of_reference.x
 for i in ${!REF[@]}; do
   ./newscan_extended.x ${REF[$i]} ${READS[$i]}
