@@ -1,122 +1,3 @@
-/* ******************************************************************************
- * newscan.cpp
- *
- * parsing algorithm for bwt construction of repetitive sequences based
- * on prefix free parsing. See:
- *   Christina Boucher, Travis Gagie, Alan Kuhnle and Giovanni Manzini
- *   Prefix-Free Parsing for Building Big BWTs
- *   [Proc. WABI '18](http://drops.dagstuhl.de/opus/volltexte/2018/9304/)
- *
- * Usage:
- *   newscan.x wsize modulus file
- *
- * Unless the parameter -c (compression rather than BWT construction,
- * see "Compression mode" below) the input file cannot contain
- * the characters 0x0, 0x1, 0x2 which are used internally.
- *
- * Since the i-th thread accesses the i-th segment of the input file
- * random access (fseek) must be possible. For gzipped inputs use
- * cnewscan.x which doesn't use threads but automatically extracts the
- * content from a gzipped input using the lz library.
- *
- * The parameters wsize and modulus are used to define the prefix free parsing
- * using KR-fingerprints (see paper)
- *
- *
- * *** BWT construction ***
- *
- * The algorithm computes the prefix free parsing of
- *     T = (0x2)file_content(0x2)^wsize
- * in a dictionary of words D and a parsing P of T in terms of the
- * dictionary words. Note that the words in the parsing overlap by wsize.
- * Let d denote the number of words in D and p the number of phrases in
- * the parsing P
- *
- * newscan.x outputs the following files:
- *
- * file.dict
- * containing the dictionary words in lexicographic order with a 0x1 at the end
- * of each word and a 0x0 at the end of the file. Size: |D| + d + 1 where |D| is
- * the sum of the word lengths
- *
- * file.occ
- * the number of occurrences of each word in lexicographic order.
- * We assume the number of occurrences of each word is at most 2^32-1
- * so the size is 4d bytes
- *
- * file.parse
- * containing the parse P with each word identified with its 1-based
- * lexicographic rank (ie its position in D). We assume the number of distinct
- * words is at most 2^32-1, so the size is 4p bytes
- *
- * file.sai (if option -s is given on the command line)
- * containing the ending position +1 of each parsed word in the original
- * text written using IBYTES bytes for each entry (IBYTES defined in utils.h)
- * Size: p*IBYTES
- *
- * The output of newscan.x must be processed by bwtparse, which invoked as
- *
- *    bwtparse file
- *
- * computes the BWT of file.parse and produces file.ilist of size 4p+4 bytes
- * contaning, for each dictionary word in lexicographic order, the list
- * of BWT positions where that word appears (ie i\in ilist(w) <=> BWT[i]=w).
- * There is also an entry for the EOF word which is not in the dictionary
- * but is assumed to be the smallest word.
- *
- * If the option -s is given to bwtparse, it permutes file.sai according
- * to the BWT permutation and generate file.bwsai using again IBYTES
- * per entry.  file.bwsai[i] is the ending position+1 of BWT[i] in the
- * original text
- *
- * The output of bwtparse (the files .ilist .bwlast) together with the
- * dictionary itself (file .dict) and the number of occurrences
- * of each word (file .occ) are used to compute the final BWT by the
- * pfbwt algorithm.
- *
- * As an additional check to the correctness of the parsing, it is
- * possible to reconstruct the original file from the files .dict
- * and .parse using the unparse tool.
- *
- *
- *  *** Compression mode ***
- *
- * If the -c option is used, the parsing is computed for compression
- * purposes rather than for building the BWT. In this case the redundant
- * information (phrases overlaps and 0x2's) is not written to the output files.
- *
- * In addition, the input can contain also the characters 0x0, 0x1, 0x2
- * (ie can be any input file). The program computes a quasi prefix-free
- * parsing (with no overlaps):
- *
- *   T = w_0 w_1 w_2 ... w_{p-1}
- *
- * where each word w_i, except the last one, ends with a lenght-w suffix s_i
- * such that KR(s_i) mod p = 0 and s_i is the only lenght-w substring of
- * w_i with that property, with the possible exception of the lenght-w
- * prefix of w_0.
- *
- * In Compression mode newscan.x outputs the following files:
- *
- * file.dicz
- * containing the concatenation of the (distinct) dictionary words in
- * lexicographic order.
- * Size: |D| where |D| is the sum of the word lengths
- *
- * file.dicz.len
- * containing the lenght in bytes of the dictionary words again in
- * lexicographic order. Each lenght is represented by a 32 bit int.
- * Size: 4d where d is the number of distinct dictionary words.
- *
- * file.parse
- * containing the parse P with each word identified with its 1-based
- * lexicographic rank (ie its position in D). We assume the number of distinct
- * words is at most 2^32-1, so the size is 4p bytes.
- *
- * From the above three files it is possible to recover the original input
- * using the unparsz tool.
- *
- */
 #include <algorithm>
 #include <assert.h>
 #include <ctime>
@@ -255,7 +136,6 @@ static void save_update_word(Args &arg, string &w,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
                              FILE *sa, uint64_t &pos) {
   size_t minsize = arg.w;
-  // cout << "pos: " << pos << " w size: " << w.size() << endl;
   assert(pos == 0 || w.size() > minsize);
   if (w.size() <= minsize)
     return;
@@ -266,8 +146,10 @@ static void save_update_word(Args &arg, string &w,
   uint64_t hash = kr_hash(w);
   if (fwrite(&hash, sizeof(hash), 1, tmp_parse_file) != 1)
     die("parse write error");
+  // recall the start of phrases in the reference so we can use them to extend
+  // the reads.
   if (is_ref) {
-    if (pos == 0)
+    if (pos == 0) // we don't extend with the dollars
       start_phrase.push_back(make_pair(pos, hash));
     else
       start_phrase.push_back(make_pair(pos - minsize, hash));
@@ -295,8 +177,8 @@ static void save_update_word(Args &arg, string &w,
   // compute ending position +1 of current word and write it to sa file
   // pos is the ending position+1 of the previous word and is updated here
   if (pos == 0)
-    pos = w.size() -
-          minsize; // - minsize is for the w initials $ of the first word
+    // minus minsize because of the w initials $ of the first word
+    pos = w.size() - minsize;
   else
     pos += w.size() - minsize;
   if (sa)
@@ -307,9 +189,13 @@ static void save_update_word(Args &arg, string &w,
   w.assign(overlap);
 }
 
-// prefix free parse of file fnam. w is the window size, p is the modulus
-// use a KR-hash as the word ID that is immediately written to the parse file
+// prefix free parse of the reference and the reads. w is the window size,
+// p is the modulus use a KR-hash as the word ID that is immediately written
+// to the temporary parse file : input.parse_old
 uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
+
+  // ----------------------- Parsing the reference  -------------------------o--
+
   // open a input file for the reference
   string fnam = arg.inputFileName;
   bool is_fasta = false;
@@ -396,15 +282,18 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 #ifdef OUTPUT_EXTENDED_READ
   extended_file << endl;
 #endif
-  // Reads parsing
+  // ----------------------- Parsing the reads  -------------------------------
   cout << "Parsing the reads" << endl;
 
   // open read file
   fnam = arg.ReadsFileName;
+
+  // Boolean to know wheter we are using the bam format
   bool is_bam = false;
   if (fnam.substr(fnam.find_last_of(".") + 1) == "bam")
     is_bam = true;
-  // iterate over all read
+
+  // file stream if we are not using the bam format
   ifstream f_r;
   if (!is_bam) {
     f_r.open(fnam);
@@ -413,7 +302,9 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       throw new std::runtime_error("Cannot open input file " + fnam);
     }
   }
+
 #ifdef BAM_READER
+  // if we are using the bam format get the BamReader
   BamReader reader;
   if (is_bam) {
     if (!reader.Open(fnam)) {
@@ -428,6 +319,9 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   string read;
   // Process each read
   while (true) {
+    // ----------------------- Get the input ----------------------------------
+
+    // get input if we are not using the bam format
     if (!is_bam) {
       if (f_r.eof())
         break;
@@ -437,6 +331,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 
     }
 #ifdef BAM_READER
+    // get input if we are using the bam format
     else {
       if (!reader.GetNextAlignment(al))
         break;
@@ -448,11 +343,15 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         continue;
     }
 #endif
+
+    // ------------------ Retrieve the extended read --------------------------
+
     // starting position of the extended read in the parse
     uint64_t r_s_p =
         upper_bound(start_phrase.begin(), start_phrase.end(),
                     make_pair(pos_read, numeric_limits<uint64_t>::max())) -
         start_phrase.begin() - 1;
+    // ending position of the extended read in the parse
     uint64_t r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
                                  make_pair(pos_read + read.size(),
                                            numeric_limits<uint64_t>::max())) -
@@ -463,41 +362,28 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
 
-    /*cout << pos_read << " " << r_s_p << " " << r_e_p << " "
-         << start_phrase[r_s_p].first << " " << start_phrase[r_e_p].first
-         << endl
-         << read << endl
-         << front_phrase << endl
-         << back_phrase << endl;*/
-
     // The extended read that will be parses in to phrases
     string read_extanded =
         front_phrase.substr(0, pos_read + arg.w - start_phrase[r_s_p].first) +
         read +
         back_phrase.substr(pos_read + read.size() - start_phrase[r_e_p].first);
 
-    /*for (auto c : read_extanded) {
-      if (c == Dollar)
-        cout << "$";
-      else
-        cout << c;
-    }
-    cout << endl;*/
 #ifdef OUTPUT_EXTENDED_READ
     extended_file << start_phrase[r_s_p].first << " "
                   << read_extanded.substr(10) << endl;
 #endif
 
-    // Mark a sepatation in the parsing
+    // ------------------- Parse the extended read ----------------------------
+
+    // Put a sepatator in the parsing
     uint64_t separator = PRIME + 1;
     if (fwrite(&separator, sizeof(separator), 1, g) != 1)
       die("parse write error");
-    // Parse the extended read
-    // Write the start of the read in the parse
+    // Write the start of the extended read in the parse
     if (fwrite(&r_s_p, sizeof(r_s_p), 1, g) != 1)
       die("parse write error");
 
-    // Write the parsing of the read
+    // Write the parsing of the extended read
     // init empty KR window: constructor only needs window size
     krw.reset();
     uint64_t i = 0;
@@ -511,21 +397,16 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         i++;
       }
     }
-    // cout << "read_extanded size "<< read_extanded.size() << endl;
     while (i < read_extanded.size()) {
       word.append(1, read_extanded[i]);
       uint64_t hash = krw.addchar(read_extanded[i]);
       if (hash % arg.p == 0) {
         // end of word, save it and write its full hash to the output file
-        // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" <<
-        // krw.get_window() << ">" <<  endl;
         save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
                          pos);
       }
       i++;
     }
-    // cout << "word: " << word << endl;
-    // cout << "word size(): " << word.size() << endl;
     if (!((start_phrase[r_s_p].first == 0 && pos + 1 == read_extanded.size()) ||
           (pos - start_phrase[r_s_p].first + arg.w == read_extanded.size()))) {
       // If we did not finished on a triggering substring, we add the last
@@ -533,7 +414,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
                        pos);
     }
-    totChar += read_extanded.size() -arg.w;
+    totChar += read_extanded.size() - arg.w;
   }
 #ifdef OUTPUT_EXTENDED_READ
   extended_file.close();
@@ -571,9 +452,8 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);
     assert(wf.occ > 0);
-    // Reverse back to write the words in reverse in the dict.
+    // Reverse back to write the words in reverse in the dict for the last step
     reverse(word, word + len);
-    // cout << wrank << ": " << word << endl;
     size_t s = fwrite(word, 1, len, fdict);
     if (s != len)
       die("Error writing to DICT file");
@@ -602,7 +482,7 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
   // recompute occ as an extra check
   vector<occ_int_t> occ(wfreq.size() + 1, 0); // ranks are zero based
   uint64_t hash;
-  uint64_t separator = PRIME + 1;
+  uint64_t separator = PRIME + 1; // separator in parse_old
   uint32_t alphabet_parse = wfreq.size();
   size_t s = fwrite(&alphabet_parse, sizeof(alphabet_parse), 1, newp);
   if (s != 1)
@@ -614,19 +494,17 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
     if (s != 1)
       die("Unexpected parse EOF");
     if (hash == separator) {
-      uint32_t sep_newp = wfreq.size() + 1;
-      // cout << "sep_newp: " << sep_newp << endl;
+      uint32_t sep_newp = wfreq.size() + 1; // separator in parse
       s = fwrite(&sep_newp, sizeof(sep_newp), 1, newp);
       if (s != 1)
         die("Error writing to new parse file");
-      // Read the allignment and rewrite it the same way
+      // Read the alignment and rewrite it the same way
       s = mfread(&hash, sizeof(hash), 1, moldp);
-      // cout << endl << hash << " # "; // output for debug
       if (fwrite(&hash, sizeof(hash), 1, newp) != 1)
         die("Error writing to new parse file");
     } else {
+      // output the remaped character of the parse
       uint32_t rank = wfreq.at(hash).rank;
-      // cout << rank << " "; // output for debug
       occ[rank]++;
       s = fwrite(&rank, sizeof(rank), 1, newp);
       if (s != 1)
@@ -729,7 +607,7 @@ int main(int argc, char **argv) {
   map<uint64_t, word_stats> wordFreq;
   uint64_t totChar;
 
-  // ------------ parsing input file
+  // ---------------------- proscessing input files ---------------------------
   try {
     if (arg.th == 0)
       totChar = process_file(arg, wordFreq);

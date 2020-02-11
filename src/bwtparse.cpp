@@ -17,9 +17,11 @@
 extern "C" {
 #include "../external/utils.h"
 }
+#define all(x) begin(x), end(x)
 
 using namespace std;
-using graph_structure_t = vector<tuple<uint32_t, uint64_t, bool>>;
+// Tree structure of the parse
+using graph_structure_t = vector<tuple<uint32_t, uint64_t>>;
 
 template <typename T = uint32_t> T read_binary(ifstream &stream) {
   T a;
@@ -37,14 +39,15 @@ template <typename T = uint64_t> void write_binary(T item, ofstream &stream) {
   stream.write((char *)&item, sizeof(item));
 }
 
-// structure: (character_in_the_parse, parent_in_the_tree, is_leaf)
 /*
- * A first ordering of the structure
+ * Read the parse and create the tree structure of the parse.
+ * Output a list of nodes : structure: (character_in_the_parse,
+ * parent_in_the_tree)
  *
- *          i i+1 i+2 i+3
+ *          i+1 i+2 i+3
  *         /
- *  0 1 2 3 4 5 6 7 8 ... i-1
- *
+ *  0 1 2 3 4 5 6 7 8 ... i-1 i
+ *            \ i+4 i+5 i+6
  *
  */
 graph_structure_t graph_structure(const string &filename,
@@ -65,18 +68,16 @@ graph_structure_t graph_structure(const string &filename,
   while (file.read((char *)&parsechar, sizeof(parsechar)),
          parsechar != separator) {
     // reading genome
-    // cout << "character_in_the_parse " << parsechar << endl;
     if (not file) {
       cerr << "Bad file structure: " << filename + ".parse" << endl;
       return structure;
     }
-    structure.push_back({parsechar, i, false});
+    structure.push_back({parsechar, i});
     i++;
   }
 
   // genome is zero based 0 1 2 3 4 ... i
   uint64_t genome_length = i;
-  get<2>(structure.back()) = true; // the last one is a leaf
   cout << "genome_parse_length: " << genome_length << endl;
   i++; // final node of the genome
 
@@ -87,18 +88,13 @@ graph_structure_t graph_structure(const string &filename,
     uint64_t pos_in_genome = read_binary64(file);
     assert(pos_in_genome <= genome_length);
     uint32_t parsechar = read_binary(file);
-    structure.push_back(
-        {parsechar, pos_in_genome, false}); // link with the genome
+    structure.push_back({parsechar, pos_in_genome}); // link with the genome
     while (parsechar = read_binary(file), parsechar != separator) {
       if (file.eof())
         break;
-      // cout << parsechar << endl;
-      structure.push_back({parsechar, i, false});
+      structure.push_back({parsechar, i});
       i++;
     }
-    get<2>(structure.back()) = true; // the last one is a leaf
-    // cout << "pos_in_genome, genome length: " << pos_in_genome << " "
-    //     << genome_length << endl;
     i++;
     if (file.eof())
       break;
@@ -112,7 +108,10 @@ pair<uint64_t, uint64_t> getPairofParsechar(triple &l, vector<triple> &in) {
   return pair<uint64_t, uint64_t>{get<1>(l), get<1>(in[get<0>(l)])};
 }
 
-#define all(x) begin(x), end(x)
+/*
+ * Doubling algorithm to order the node of tree (seen as a wheeler graph),
+ * we obtain a wheeler order that we later use to build the BWT.
+ */
 vector<uint64_t> doubling_algorithm(graph_structure_t &graph_structure) {
   uint64_t n = graph_structure.size();
   vector<uint64_t> result(n + 1);
@@ -188,9 +187,11 @@ int main(int argc, char *argv[]) {
   uint32_t alphabet_parse = 0;
   auto structure = graph_structure(filename, alphabet_parse);
   // cout << "structure: " << structure << endl;
+
   cout << "Compute wheeler order and then SA via doubling algorithm" << endl;
   vector<uint64_t> sa = doubling_algorithm(structure);
   // cout << "sa: " << sa << endl;
+
   // inversing the graph so we can build a BWT
   cout << "Building the reverse graph for the BWT" << endl;
   uint64_t n = structure.size();
@@ -200,6 +201,7 @@ int main(int argc, char *argv[]) {
     children_char[get<1>(e)].push_back(get<0>(e));
   }
   // cout << children_char << endl;
+
   vector<vector<uint32_t>> children_full_word(alphabet_parse + 1);
   children_full_word[0] = children_char[0];
   for (uint64_t i = 1; i < n; i++) {
@@ -212,6 +214,7 @@ int main(int argc, char *argv[]) {
     }
   }
   // cout << children_full_word << endl;
+
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
   BWT.push_back(0); // empty word
@@ -221,27 +224,25 @@ int main(int argc, char *argv[]) {
     }
   }
   // cout << "BWT: " << BWT << endl;
+
   // Creating the F vector
   ifstream file_occ(filename + ".occ", ios::in | ios::binary);
   vector<uint32_t> occ(alphabet_parse + 1, 0);
   for (uint32_t i = 1; i < alphabet_parse + 1; i++)
     occ[i] = read_binary(file_occ);
   occ[0] = 1; // empty word
-  // cout << "occ: " << occ << endl;
   vector<uint32_t> F(alphabet_parse + 1, 0);
   for (uint32_t i = 1; i <= alphabet_parse; i++)
     F[i] = F[i - 1] + occ[i - 1];
-  // cout << "F: " << F << endl;
   vector<uint32_t> ilist(n + 1, 0);
   for (uint32_t i = 0; i <= n; i++) {
     ilist[F[BWT[i]]++] = i;
     occ[BWT[i]]--;
   }
-  // cout << "ilist: " << ilist << endl;
-
   for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     assert(occ[i] == 0);
   }
+  // cout << "ilist: " << ilist << endl;
 
   cout << "Saving .full_children and .ilist files" << endl;
   // Saving children ordered by sa

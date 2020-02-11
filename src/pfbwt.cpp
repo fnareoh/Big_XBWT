@@ -1,15 +1,3 @@
-/* **************************************************************************
- * pfbwt.cpp
- * Output the BWT, the SA (option -S) or the sampled SA (option -s)
- * computed using the prefix-free parsing technique
- *
- * Usage:
- *   pfbwt[NT][64].x -h
- * for usage info
- *
- * See newscan.cpp for a description of what it does
- *
- **************************************************************************** */
 #include <algorithm>
 #include <assert.h>
 #include <ctime>
