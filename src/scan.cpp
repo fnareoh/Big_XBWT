@@ -134,7 +134,7 @@
 #include <unistd.h>
 #include <vector>
 extern "C" {
-#include "utils.h"
+#include "../external/utils.h"
 }
 #ifdef BAM_READER
 // To read the bam format

@@ -29,8 +29,8 @@
 #include <unistd.h>
 #include <vector>
 extern "C" {
-#include "gsa/gsacak.h"
-#include "utils.h"
+#include "../external/gsa/gsacak.h"
+#include "../external/utils.h"
 }
 
 using namespace std;

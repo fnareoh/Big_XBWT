@@ -7,7 +7,7 @@ by Giovanni Manzini, to obtain something close to a XBWT of a set of reads and i
 
 ```
 make all
-./newscan.x data/ref.in data/reads.in
+./scan.x data/ref.in data/reads.in
 ./bwtparse.x data/ref.in
 ./pfbwt.x data/ref.in
 ```
@@ -29,16 +29,16 @@ For **the read file** we support two format:
  - The [BAM](https://genome.sph.umich.edu/wiki/BAM) file format, but to parse
    it we depend on the [bamtools](https://github.com/pezmaster31/bamtools)
    library that you need to have installed in you home. The file name needs to
-   end by ".bam" and then the usage of the `newscan` step becomes
+   end by ".bam" and then the usage of the `scan` step becomes
    ```
-   make make newscan_BAM_READER.x
-   ./newscan_BAM_READER.x <input file for the reference> <input file for the
+   make make scan_BAM_READER.x
+   ./scan_BAM_READER.x <input file for the reference> <input file for the
    reads>
    ```
 
 ## Structure
 
-1. `newscan.cpp`: The goal of this step is to build the prefix free parsing.
+1. `scan.cpp`: The goal of this step is to build the prefix free parsing.
 It first parses the reference, then extends the read with parts of the reference so that they start and end with a trigering substring (if possible), and then parses this extended read. To avoid going through the input file twice, the parse is first stored with a random hash for each phrases in a intermediate file `file.parse_old`. Before the start of a read there is a separator (which is PRIME+1) followed by the position where the extended read starts in the parse. 
 After the input (reference and reads) has been entirely parsed, the dictionary is sorted in **colexicographic order** and outputed in the the file `file.dict` and the number of occurences of each word is sotred in `file.occ`. 
 Finally the parse in `file.parse_old` is mapped to match the sorted dictionnary. If a word is the first word of the dictionary, it's hash is mapped to 1. The separator is now number_of_words_in_the_dictionary+1 and is put at the begining of the file where we store this new and final parse : `file.parse`.
@@ -76,7 +76,7 @@ First the suffix array of all the inversed words (the fact that they are inverse
   - the number of occurrences of each word in lexicographic order. We assume the number of occurrences of each word is at most 2^32-1
   - size: 4d bytes (32 bit ints)
 - `file.extended_input`
-  - This is an optional file that can be obtained with `newscan_extended.x` which outputs the extended reads and there starting position in the reference. The extended read do not contain the first `w` characters (the trigering substring) that overlaps with the reference. This is mostly for debugging purposes.
+  - This is an optional file that can be obtained with `scan_extended.x` which outputs the extended reads and there starting position in the reference. The extended read do not contain the first `w` characters (the trigering substring) that overlaps with the reference. This is mostly for debugging purposes.
 - `file.ilist` (inverted list occurrence)
   - For each dictionary word in lexicographic order, the list of BWT positions where that word appears (ie i \in ilist(w) <=> BWT[i]=w). There is also an entry for the empty word which is not in the dictionary but is assumed to be the smallest word.
   - size: 4p+4

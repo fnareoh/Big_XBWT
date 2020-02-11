@@ -1,4 +1,4 @@
-#include "prettyprint.hpp"
+#include "../external/prettyprint.hpp"
 #include <assert.h>
 #include <ctime>
 #include <errno.h>
@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <vector>
 extern "C" {
-#include "utils.h"
+#include "../external/utils.h"
 }
 
 using namespace std;
