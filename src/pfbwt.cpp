@@ -53,17 +53,6 @@ static void fwrite_chars_same_suffix(vector<uint32_t> &id2merge,
                                      uint32_t *ilist, uint32_t *istart,
                                      FILE *fbwt, long &easy_bwts,
                                      long &hard_bwts);
-static void fwrite_chars_same_suffix_sa(vector<uint32_t> &id2merge,
-                                        vector<uint8_t> &char2write,
-                                        uint32_t *ilist, uint32_t *istart,
-                                        FILE *fbwt, long &easy_bwts,
-                                        long &hard_bwts, int_t suffixLen,
-                                        FILE *safile, uint8_t *bwsainfo, long);
-static void fwrite_chars_same_suffix_ssa(
-    vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    int_t suffixLen, FILE *ssafile, FILE *esafile, uint8_t *bwsainfo, long,
-    int &, uint64_t &, int);
 static uint8_t *load_bwsa_info(Args &arg, long n);
 
 // class representing the suffix of a dictionary word
@@ -90,6 +79,7 @@ struct SeqId {
   bool operator<(const SeqId &a);
 };
 
+// Get the character at w+1 position from the end of the word.
 uint8_t last_char(Args &arg, uint32_t word, vector<string> dict_word) {
   uint8_t res = dict_word[word][dict_word[word].length() - arg.w - 1];
   return res;
@@ -101,7 +91,7 @@ bool SeqId::operator<(const SeqId &a) { return *bwtpos > *(a.bwtpos); }
  * Computation of the final BWT
  *
  * istart[] and islist[] are used together. For each dictionary word i
- * (considered in lexicographic order) for k=istart[i]...istart[i+1]-1
+ * (considered in colexicographic order) for k=istart[i]...istart[i+1]-1
  * ilist[k] contains the ordered positions in BWT(P) containing word i
  * ******************************************************************* */
 void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
@@ -127,9 +117,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   uint_t *sa;
   int_t *lcp;
   compute_dict_bwt_lcp(d, dsize, dwords, arg.w, &sa, &lcp);
-  // set d[0]==0 as this is the EOF char in the final BWT
-  // assert(d[0] == Dollar);
-  // d[0] = 0;
 
   // derive eos from sa. for i=0...dwords-1, eos[i] is the eos position of
   // string i in d
@@ -147,7 +134,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   long hard_bwts = 0;
   long next;
   uint32_t seqid;
-  int lastbwt = Dollar;         // this is certainly not a BWT char
   uint64_t lastSa = UINT64_MAX; // this is an invalid SA entry
 
   // Adding the first characters for wich the contest is only w dollars
@@ -157,7 +143,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // in any case output BWT char
     if (fputc(nextbwt, fbwt) == EOF)
       die("BWT write error 0");
-    lastbwt = nextbwt; // update lastbwt
     easy_bwts++;
   }
 
@@ -171,6 +156,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
       continue;
     }
     // ----- simple case: the suffix is a full word
+    // ----- then we ouput the characters that folows in the tree
     if (sa[i] == 0 || d[sa[i] - 1] == EndOfWord) {
       full_words++;
       for (uint32_t w : children[seqid + 1]) {
@@ -179,7 +165,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         // in any case output BWT char
         if (fputc(nextbwt, fbwt) == EOF)
           die("BWT write error 0");
-        lastbwt = nextbwt; // update lastbwt
         easy_bwts++;
       }
       continue; // proceed with next i
@@ -188,40 +173,24 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // save seqid and the corresponding char
     vector<uint32_t> id2merge(1, seqid);
     vector<uint8_t> char2write(1, d[sa[i] - 1]);
-    /*cout << "seqid, char: " << seqid << ", " << d[sa[i] - 1] << endl;
-    cout << "next: " << next << endl;
-    cout << "lcp[next]: " << lcp[next] << endl;*/
     while (next < dsize && lcp[next] >= suffixLen) {
-      assert(lcp[next] ==
-             suffixLen); // the lcp cannot be greater than suffixLen
+      // the lcp cannot be greater than suffixLen
+      assert(lcp[next] == suffixLen);
       // sa[next] cannot be a full word
       assert(sa[next] > 0 && d[sa[next] - 1] != EndOfWord);
       int_t nextsuffixLen = getlen(sa[next], eos, dwords, &seqid);
-      // cout << "nextsuffixLen: " << nextsuffixLen << endl;
       assert(nextsuffixLen >= suffixLen);
       if (nextsuffixLen == suffixLen) {
-        // cout << "in hard case at char: " << easy_bwts + hard_bwts << endl;
         id2merge.push_back(seqid);             // sequence to consider
         char2write.push_back(d[sa[next] - 1]); // corresponding char
         next++;
       } else
         break;
     }
-    // cout << "next after: " << next << endl;
     // output to fbwt the bwt chars corresponding to the current dictionary
-    // suffix, and, if requested, some SA values
-    if (arg.SA)
-      fwrite_chars_same_suffix_sa(id2merge, char2write, ilist, istart, fbwt,
-                                  easy_bwts, hard_bwts, suffixLen, safile,
-                                  bwsainfo, psize);
-    else if (arg.sampledSA != 0)
-      fwrite_chars_same_suffix_ssa(id2merge, char2write, ilist, istart, fbwt,
-                                   easy_bwts, hard_bwts, suffixLen, ssafile,
-                                   esafile, bwsainfo, psize, lastbwt, lastSa,
-                                   arg.sampledSA);
-    else
-      fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
-                               easy_bwts, hard_bwts);
+    // suffix
+    fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
+                             easy_bwts, hard_bwts);
   }
   // write very last Sa pair
   if (arg.sampledSA & END_RUN) {
@@ -522,11 +491,12 @@ static int_t getlen(uint_t p, uint_t eos[], long n, uint32_t *seqid) {
 // compute the SA and LCP array for the set of (unique) dictionary words
 // using gSACA-K. Also do some checking based on the number and order of the
 // special symbols d[0..dsize-1] is the dictionary consisting of the
-// concatenation of dictionary words in lex order with EndOfWord (0x1) at the
-// end of each word and d[size-1] = EndOfDict (0x0) at the very end. It is
-// d[0]=Dollar (0x2) since the first word starts with $. There is another word
-// somewhere ending with Dollar^wEndOfWord (it is the last word in the parsing,
-// but its lex rank is unknown).
+// concatenation of reversed dictionary words in lex order (so the words of the
+// dictionary are in colexicographic order. with EndOfWord (0x1) at the end of
+// each word and d[size-1] = EndOfDict (0x0) at the very end. It is d[0]=Dollar
+// (0x2) since the first word starts with $. There is another word somewhere
+// ending with Dollar^wEndOfWord (it is the last word in the parsing, but its
+// lex rank is unknown).
 static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
                                  uint_t **sap,
                                  int_t **lcpp) // output parameters
@@ -590,139 +560,6 @@ static void fwrite_chars_same_suffix(vector<uint32_t> &id2merge,
       SeqId s = heap.front();
       if (fputc(s.char2write, fbwt) == EOF)
         die("BWT write error 2");
-      hard_bwts += 1;
-      // remove top
-      pop_heap(heap.begin(), heap.end());
-      heap.pop_back();
-      // if remaining positions, reinsert to heap
-      if (s.next()) {
-        heap.push_back(s);
-        push_heap(heap.begin(), heap.end());
-      }
-    }
-  }
-}
-
-// write to the bwt all the characters preceding a given suffix
-// and the corresponding SA entries doing a merge operation
-static void fwrite_chars_same_suffix_sa(
-    vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    int_t suffixLen, FILE *safile, uint8_t *bwsainfo, long n) {
-  size_t numwords =
-      id2merge.size(); // numwords dictionary words contain the same suffix
-  if (numwords == 1) {
-    uint32_t s = id2merge[0];
-    for (long j = istart[s]; j < istart[s + 1]; j++) {
-      if (fputc(char2write[0], fbwt) == EOF)
-        die("BWT write error 1");
-      uint64_t sa = get_myint(bwsainfo, n, ilist[j]) - suffixLen;
-      if (fwrite(&sa, SABYTES, 1, safile) != 1)
-        die("SA write error 1");
-    }
-    easy_bwts += istart[s + 1] - istart[s];
-  } else {              // many words, many chars...
-    vector<SeqId> heap; // create heap
-    for (size_t i = 0; i < numwords; i++) {
-      uint32_t s = id2merge[i];
-      heap.push_back(SeqId(s, istart[s + 1] - istart[s], ilist + istart[s],
-                           char2write[i]));
-    }
-    std::make_heap(heap.begin(), heap.end());
-    while (heap.size() > 0) {
-      // output char for the top of the heap
-      SeqId s = heap.front();
-      if (fputc(s.char2write, fbwt) == EOF)
-        die("BWT write error 2");
-      uint64_t sa = get_myint(bwsainfo, n, *(s.bwtpos)) - suffixLen;
-      if (fwrite(&sa, SABYTES, 1, safile) != 1)
-        die("SA write error 2");
-      hard_bwts += 1;
-      // remove top
-      pop_heap(heap.begin(), heap.end());
-      heap.pop_back();
-      // if remaining positions, reinsert to heap
-      if (s.next()) {
-        heap.push_back(s);
-        push_heap(heap.begin(), heap.end());
-      }
-    }
-  }
-}
-
-// write to the bwt all the characters preceding a given suffix
-// and the corresponding sampled SA entries doing a merge operation
-static void fwrite_chars_same_suffix_ssa(
-    vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    int_t suffixLen, FILE *ssafile, FILE *esafile, uint8_t *bwsainfo, long n,
-    int &bwtlast, uint64_t &salast, int ssa) {
-  size_t numwords =
-      id2merge.size(); // numwords dictionary words contain the same suffix
-  if (numwords == 1) {
-    // there is a single run, so a single potential SA value
-    uint32_t s = id2merge[0];
-    int bwtnext = char2write[0];
-    if (bwtnext != bwtlast) {
-      uint64_t pos = easy_bwts + hard_bwts;
-      if (ssa & START_RUN) {
-        uint64_t sa = get_myint(bwsainfo, n, ilist[istart[s]]) - suffixLen;
-        if (fwrite(&pos, SABYTES, 1, ssafile) != 1)
-          die("sampled SA write error 1a");
-        if (fwrite(&sa, SABYTES, 1, ssafile) != 1)
-          die("sampled SA write error 1b");
-      }
-      if (ssa & END_RUN) {
-        pos--;
-        if (fwrite(&pos, SABYTES, 1, esafile) != 1)
-          die("sampled SA write error 1c");
-        if (fwrite(&salast, SABYTES, 1, esafile) != 1)
-          die("sampled SA write error 1d");
-      }
-      bwtlast = bwtnext;
-    }
-    for (long j = istart[s]; j < istart[s + 1]; j++) // write all BWT chars
-      if (fputc(bwtnext, fbwt) == EOF)
-        die("BWT write error 1");
-    easy_bwts += istart[s + 1] - istart[s];
-    if (ssa & END_RUN) // save the last sa value
-      salast = get_myint(bwsainfo, n, ilist[istart[s + 1] - 1]) - suffixLen;
-  } else {              // many words, many chars...
-    vector<SeqId> heap; // create heap
-    for (size_t i = 0; i < numwords; i++) {
-      uint32_t s = id2merge[i];
-      heap.push_back(SeqId(s, istart[s + 1] - istart[s], ilist + istart[s],
-                           char2write[i]));
-    }
-    std::make_heap(heap.begin(), heap.end());
-    while (heap.size() > 0) {
-      // output char for the top of the heap
-      uint64_t sa;
-      SeqId s = heap.front();
-      int bwtnext = s.char2write;
-      if (fputc(bwtnext, fbwt) == EOF)
-        die("BWT write error 2");
-      if ((ssa & END_RUN) || (bwtnext != bwtlast))
-        sa = get_myint(bwsainfo, n, *(s.bwtpos)) - suffixLen;
-      if (bwtnext != bwtlast) {
-        uint64_t pos = easy_bwts + hard_bwts;
-        if (ssa & START_RUN) {
-          if (fwrite(&pos, SABYTES, 1, ssafile) != 1)
-            die("sampled SA write error 2a");
-          if (fwrite(&sa, SABYTES, 1, ssafile) != 1)
-            die("sampled SA write error 2b");
-        }
-        if (ssa & END_RUN) {
-          pos--;
-          if (fwrite(&pos, SABYTES, 1, esafile) != 1)
-            die("sampled SA write error 2c");
-          if (fwrite(&salast, SABYTES, 1, esafile) != 1)
-            die("sampled SA write error 2d");
-        }
-        bwtlast = bwtnext;
-      }
-      if (ssa & END_RUN)
-        salast = sa; // save current sa
       hard_bwts += 1;
       // remove top
       pop_heap(heap.begin(), heap.end());
