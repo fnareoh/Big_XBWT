@@ -136,7 +136,9 @@ static void save_update_word(Args &arg, string &w,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
                              FILE *sa, uint64_t &pos) {
   size_t minsize = arg.w;
-  assert(pos == 0 || w.size() > minsize);
+  //if (pos==0) cout << "pos,w.size()" << pos << " " << w.size() << endl;
+  //if (pos==8) cout << "pos,w.size()" << pos << " " << w.size() << endl;
+  //assert(pos == 0 || w.size() > minsize);
   if (w.size() <= minsize)
     return;
   // save overlap
@@ -152,7 +154,7 @@ static void save_update_word(Args &arg, string &w,
     if (pos == 0) // we don't extend with the dollars
       start_phrase.push_back(make_pair(pos, hash));
     else
-      start_phrase.push_back(make_pair(pos - minsize, hash));
+      start_phrase.push_back(make_pair(pos , hash));
   }
 
   // update frequency table for current hash
@@ -356,18 +358,32 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
                                  make_pair(pos_read + read.size(),
                                            numeric_limits<uint64_t>::max())) -
                      start_phrase.begin() - 1;
+    cout << "pos_read " << pos_read << endl; 
+    cout << "pos_read_end " << pos_read+read.size() << endl; 
+    cout << "r_s_p " << r_s_p << endl; 
+    cout << "r_e_p " << r_e_p << endl; 
 
     assert(r_s_p < start_phrase.size());
     // phrase we are going to extend the read with, at the front and at the end
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
+    cout << "start_phrases: " << start_phrase[r_s_p].first << " end_phrase " << start_phrase[r_e_p].first+size(back_phrase) << endl;
+    cout << "start_phrases r_e_p+1: " << start_phrase[r_e_p+1].first  << endl;
+    cout << "len_phrases: " << size(front_phrase) << " " << size(back_phrase) << endl;
 
+    string read_extanded;
+    if (pos_read+read.size() > start_phrase[r_e_p].first+size(back_phrase)){
+    	read_extanded = 
+		front_phrase.substr(0, pos_read + arg.w - start_phrase[r_s_p].first) +
+		read;
+    }
+    else {
     // The extended read that will be parses in to phrases
-    string read_extanded =
+    read_extanded =
         front_phrase.substr(0, pos_read + arg.w - start_phrase[r_s_p].first) +
         read +
         back_phrase.substr(pos_read + read.size() - start_phrase[r_e_p].first);
-
+	}
 #ifdef OUTPUT_EXTENDED_READ
     extended_file << start_phrase[r_s_p].first << " "
                   << read_extanded.substr(10) << endl;
