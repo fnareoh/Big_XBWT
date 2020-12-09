@@ -80,7 +80,7 @@ struct SeqId {
 };
 
 // Get the character at w+1 position from the end of the word.
-uint8_t last_char(Args &arg, uint32_t word, vector<string> dict_word) {
+uint8_t last_char(Args &arg, uint32_t word, vector<string> &dict_word) {
   uint8_t res = dict_word[word][dict_word[word].length() - arg.w - 1];
   return res;
 }
@@ -127,6 +127,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   // open output file
   FILE *fbwt = open_aux_file(arg.basename, "bwt", "wb");
 
+  cout << "Opening the output file" << endl;
   // main loop: consider each entry in the SA of dict
   time_t start = time(NULL);
   long full_words = 0;
@@ -139,12 +140,15 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   // Adding the first characters for wich the contest is only w dollars
   for (uint32_t w : children[0]) {
     // compute next bwt char
+    cout << "Compute nextbwt for last_char: " << w-1 << endl;
     int nextbwt = last_char(arg, w - 1, dict_word);
+    cout << "nextbwt: " << nextbwt << endl;
     // in any case output BWT char
     if (fputc(nextbwt, fbwt) == EOF)
       die("BWT write error 0");
     easy_bwts++;
   }
+  cout << "Finished adding the first characters" << endl;
 
   for (long i = dwords + 1; i < dsize; i = next) {
     // we are considering d[sa[i]....]
@@ -174,6 +178,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     vector<uint32_t> id2merge(1, seqid);
     vector<uint8_t> char2write(1, d[sa[i] - 1]);
     while (next < dsize && lcp[next] >= suffixLen) {
+	cout << (next < dsize && lcp[next] >= suffixLen) << endl;   
       // the lcp cannot be greater than suffixLen
       assert(lcp[next] == suffixLen);
       // sa[next] cannot be a full word
@@ -187,6 +192,9 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
       } else
         break;
     }
+    cout << "full_words: " << full_words << endl;
+    cout << "easy_bwts: " << easy_bwts << endl;
+    cout << "hard_bwts: " << hard_bwts << endl;
     // output to fbwt the bwt chars corresponding to the current dictionary
     // suffix
     fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
@@ -521,7 +529,7 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
     assert(d[sa[i + 1]] == EndOfWord); // there are dwords EndOfWord symbols
   // EndOfWord symbols are in position order, so the last is d[dsize-2]
   assert(sa[dwords] == (unsigned long)dsize - 2);
-
+  cout << "finished checking the SA" << endl;
   *sap = sa;
   *lcpp = lcp;
 }
