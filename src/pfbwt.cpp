@@ -177,11 +177,14 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // save seqid and the corresponding char
     vector<uint32_t> id2merge(1, seqid);
     vector<uint8_t> char2write(1, d[sa[i] - 1]);
-    while (next < dsize && lcp[next] >= suffixLen) {
+    while (next < dsize && lcp[next] >= suffixLen && (d[sa[next]-1]!=EndOfWord)) {
 	cout << (next < dsize && lcp[next] >= suffixLen) << endl;   
       // the lcp cannot be greater than suffixLen
       assert(lcp[next] == suffixLen);
       // sa[next] cannot be a full word
+      cout << sa[next] << endl;
+      cout << d[sa[next]-1] << endl;
+      cout << (d[sa[next]-1]==EndOfWord) << endl;
       assert(sa[next] > 0 && d[sa[next] - 1] != EndOfWord);
       int_t nextsuffixLen = getlen(sa[next], eos, dwords, &seqid);
       assert(nextsuffixLen >= suffixLen);
