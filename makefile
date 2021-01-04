@@ -20,7 +20,7 @@ scan_BAM_READER.x: src/scan.cpp external/malloc_count.o external/utils.o
 	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lbamtools -lz
 
 bwtparse.x: src/bwtparse.cpp external/malloc_count.o external/utils.o
-	$(CC) $(CXX_FLAGS) -o $@ $^ -ldl
+	$(CC) $(CXX_FLAGS) -o $@ $^ -ldl -lstdc++
 
 # prefix free BWT construction
 pfbwt.x: src/pfbwt.cpp external/gsa/gsacak.o external/utils.o external/malloc_count.o
@@ -33,4 +33,4 @@ clean:
 	rm -f $(EXECS)  external/*.o external/gsa/*.o
 
 clean_all:
-	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.bwt
+	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.limits data/*.limits_ilist 
