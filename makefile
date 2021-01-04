@@ -10,20 +10,20 @@ EXECS=scan.x scan_BAM_READER.x scan_extended.x bwtparse.x pfbwt.x
 
 all: scan.x bwtparse.x pfbwt.x
 
-scan.x: src/scan.cpp external/utils.o
+scan.x: src/scan.cpp src/parameters.cpp external/utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
-scan_extended.x: src/scan.cpp external/utils.o
+scan_extended.x: src/scan.cpp src/parameters.cpp external/utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl -DOUTPUT_EXTENDED_READ
 
-scan_BAM_READER.x: src/scan.cpp external/malloc_count.o external/utils.o
+scan_BAM_READER.x: src/scan.cpp src/parameters.cpp external/malloc_count.o external/utils.o
 	$(CXX) $(CXX_FLAGS) $(BAM_FLAGS) -o $@ $^ -ldl -DBAM_READER -lbamtools -lz
 
 bwtparse.x: src/bwtparse.cpp external/malloc_count.o external/utils.o
 	$(CC) $(CXX_FLAGS) -o $@ $^ -ldl -lstdc++
 
 # prefix free BWT construction
-pfbwt.x: src/pfbwt.cpp external/gsa/gsacak.o external/utils.o external/malloc_count.o
+pfbwt.x: src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak.o external/utils.o external/malloc_count.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
 %.o: %.c %.h

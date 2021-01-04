@@ -1,16 +1,15 @@
+#include "parameters.hpp"
 #include <algorithm>
 #include <assert.h>
 #include <ctime>
 #include <errno.h>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <map>
 #include <random>
 #include <sstream>
 #include <stdexcept>
 #include <stdint.h>
-#include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
@@ -40,18 +39,6 @@ struct word_stats {
   string str;
   occ_int_t occ;
   word_int_t rank = 0;
-};
-
-// -------------------------------------------------------------
-// struct containing command line parameters and other globals
-struct Args {
-  string inputFileName = "";
-  string ReadsFileName = "";
-  int w = 10;          // sliding window size and its default
-  int p = 100;         // modulus for establishing stopping w-tuples
-  bool SAinfo = false; // compute SA information
-  int th = 0;          // number of helper threads
-  int verbose = 0;     // verbosity level
 };
 
 // -----------------------------------------------------------------
@@ -401,15 +388,15 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     } else {
       l_start = pos_read + arg.w - start_phrase[r_s_p].first;
       l_end = pos_read + read.size() - start_phrase[r_e_p].first + arg.w;
-      //cout << "l_start: " << l_start << endl;
-      //cout << "l_end: " << l_end << endl;
+      // cout << "l_start: " << l_start << endl;
+      // cout << "l_end: " << l_end << endl;
       read_extanded =
           front_phrase.substr(0, l_start) + read + back_phrase.substr(l_end);
       l_end = read_extanded.size() - back_phrase.size() + l_end;
-      //cout << "final l_end: " << l_end << endl;
+      // cout << "final l_end: " << l_end << endl;
     }
-    //l_start = l_start-arg.w;
-    //l_end = l_end-arg.w;
+    // l_start = l_start-arg.w;
+    // l_end = l_end-arg.w;
     cout << "read: " << read << endl;
     cout << "read_extanded: " << read_extanded << endl;
     cout << "l_start: " << l_start << endl;
@@ -610,83 +597,10 @@ void remapParse(Args &arg, map<uint64_t, word_stats> &wfreq) {
     assert(x.second.occ == occ[x.second.rank]);
 }
 
-void print_help(char **argv, Args &args) {
-  cout << "Usage: " << argv[0] << " <input filename> [options]" << endl;
-  cout << "  Options: " << endl
-       << "\t-w W\tsliding window size, def. " << args.w << endl
-       << "\t-p M\tmodulo for defining phrases, def. " << args.p << endl
-       << "\t-c  \tdiscard redundant information" << endl
-       << "\t-h  \tshow help and exit" << endl
-       << "\t-s  \tcompute suffix array info" << endl;
-  exit(1);
-}
-
-void parseArgs(int argc, char **argv, Args &arg) {
-  int c;
-  extern char *optarg;
-  extern int optind;
-
-  puts("==== Command line:");
-  for (int i = 0; i < argc; i++)
-    printf(" %s", argv[i]);
-  puts("");
-
-  string sarg;
-  while ((c = getopt(argc, argv, "p:w:sht:vc")) != -1) {
-    switch (c) {
-    case 's':
-      arg.SAinfo = true;
-      break;
-    case 'w':
-      sarg.assign(optarg);
-      arg.w = stoi(sarg);
-      break;
-    case 'p':
-      sarg.assign(optarg);
-      arg.p = stoi(sarg);
-      break;
-    case 't':
-      sarg.assign(optarg);
-      arg.th = stoi(sarg);
-      break;
-    case 'v':
-      arg.verbose++;
-      break;
-    case 'h':
-      print_help(argv, arg);
-      exit(1);
-    case '?':
-      cout << "Unknown option. Use -h for help." << endl;
-      exit(1);
-    }
-  }
-  // the only input parameter is the file name
-  if (argc == optind + 2) {
-    arg.inputFileName.assign(argv[optind]);
-    arg.ReadsFileName.assign(argv[optind + 1]);
-  } else {
-    cout << "Invalid number of arguments" << endl;
-    print_help(argv, arg);
-  }
-  // check algorithm parameters
-  if (arg.w < 4) {
-    cout << "Windows size must be at least 4\n";
-    exit(1);
-  }
-  if (arg.p < 10) {
-    cout << "Modulus must be at leas 10\n";
-    exit(1);
-  }
-  if (arg.th != 0) {
-    cout << "The NT version cannot use threads\n";
-    exit(1);
-  }
-}
-
 int main(int argc, char **argv) {
   // translate command line parameters
   Args arg;
-  parseArgs(argc, argv, arg);
+  scan_parseargs(argc, argv, arg);
   cout << "Windows size: " << arg.w << endl;
   cout << "Stop word modulus: " << arg.p << endl;
 

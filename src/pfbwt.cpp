@@ -1,3 +1,4 @@
+#include "parameters.hpp"
 #include <algorithm>
 #include <assert.h>
 #include <bits/stdint-uintn.h>
@@ -24,25 +25,6 @@ extern "C" {
 
 using namespace std;
 using namespace __gnu_cxx;
-
-// -------------------------------------------------------------
-// struct containing command line parameters and other globals
-struct Args {
-  char *basename;
-  string parseExt = EXTPARSE; // extension final parse file
-  string occExt = EXTOCC;     // extension occurrences file
-  string dictExt = EXTDICT;   // extension dictionary file
-  string lastExt = EXTLST;    // extension file containing last chars
-  string saExt = EXTSAI;      // extension file containing sa info
-  int w = 10;                 // sliding window size and its default
-  int th = 0;                 // number of helper threads, default none
-  bool SA = false;            // output all SA values
-  int sampledSA = 0;          // output sampled SA values
-};
-
-// mask for sampled SA: start of a BWT run, end of a BWT run, or both
-#define START_RUN 1
-#define END_RUN 2
 
 static long get_num_words(uint8_t *d, long n);
 static long binsearch(uint_t x, uint_t a[], long n);
@@ -82,8 +64,9 @@ struct SeqId {
   }
   bool operator<(const SeqId &a);
   bool in_limits() {
-    cout << "SedId in in_limits:"<< limits_ilist->first << " <= " << unsigned(pos) << " < "
-         << limits_ilist->second << " ?" << endl;
+    cout << "SedId in in_limits:" << limits_ilist->first
+         << " <= " << unsigned(pos) << " < " << limits_ilist->second << " ?"
+         << endl;
     return (pos < (int)limits_ilist->second && pos >= (int)limits_ilist->first);
   }
 };
@@ -188,8 +171,8 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // save seqid and the corresponding char
     vector<uint32_t> id2merge(1, seqid);
     vector<uint8_t> char2write(1, d[sa[i] - 1]);
-    //vector<uint8_t> pos2test(1, dict_word[seqid].length() - suffixLen - 1);
-    vector<uint8_t> pos2test(1,suffixLen);
+    // vector<uint8_t> pos2test(1, dict_word[seqid].length() - suffixLen - 1);
+    vector<uint8_t> pos2test(1, suffixLen);
     while (next < dsize && lcp[next] >= suffixLen &&
            (d[sa[next] - 1] != EndOfWord)) {
       cout << (next < dsize && lcp[next] >= suffixLen) << endl;
@@ -206,7 +189,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         id2merge.push_back(seqid);             // sequence to consider
         char2write.push_back(d[sa[next] - 1]); // corresponding char
         pos2test.push_back(suffixLen);
-        //pos2test.push_back(dict_word[seqid].length() - suffixLen - 1);
+        // pos2test.push_back(dict_word[seqid].length() - suffixLen - 1);
         next++;
       } else
         break;
@@ -246,87 +229,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     fclose(esafile);
 }
 
-void print_help(char **argv, Args &args) {
-  cout << "Usage: " << argv[0] << " <input filename> [options]" << endl;
-  cout << "  Options: " << endl
-       << "\t-w W\tsliding window size, def. " << args.w << endl
-#ifndef NOTHREADS
-       << "\t-t M\tnumber of helper threads, def. none " << endl
-#endif
-       << "\t-h  \tshow help and exit" << endl
-       << "\t-s  \tcompute sampled suffix array" << endl
-       << "\t-S  \tcompute full suffix array" << endl;
-  exit(1);
-}
-
-void parseArgs(int argc, char **argv, Args &arg) {
-  int c;
-  extern char *optarg;
-  extern int optind;
-
-  puts("==== Command line:");
-  for (int i = 0; i < argc; i++)
-    printf(" %s", argv[i]);
-  puts("");
-
-  string sarg;
-  while ((c = getopt(argc, argv, "t:w:sehS")) != -1) {
-    switch (c) {
-    case 's':
-      arg.sampledSA |= START_RUN;
-      break; // record SA position for start of runs
-    case 'e':
-      arg.sampledSA |= END_RUN;
-      break; // record SA position for end of runs
-    case 'S':
-      arg.SA = true;
-      break;
-    case 'w':
-      sarg.assign(optarg);
-      arg.w = stoi(sarg);
-      break;
-    case 't':
-      sarg.assign(optarg);
-      arg.th = stoi(sarg);
-      break;
-    case 'h':
-      print_help(argv, arg);
-      exit(1);
-    case '?':
-      cout << "Unknown option. Use -h for help." << endl;
-      exit(1);
-    }
-  }
-  // the only input parameter is the file name
-  arg.basename = NULL;
-  if (argc == optind + 1)
-    arg.basename = argv[optind];
-  else {
-    cout << "Invalid number of arguments" << endl;
-    print_help(argv, arg);
-  }
-  // check algorithm parameters
-  if (arg.SA && arg.sampledSA != 0) {
-    cout << "You can either require the sampled SA or the full SA, not both";
-    exit(1);
-  }
-  if (arg.w < 4) {
-    cout << "Windows size must be at least 4\n";
-    exit(1);
-  }
-#ifdef NOTHREADS
-  if (arg.th != 0) {
-    cout << "The NT version cannot use threads\n";
-    exit(1);
-  }
-#else
-  if (arg.th < 0) {
-    cout << "Number of threads cannot be negative\n";
-    exit(1);
-  }
-#endif
-}
-
 template <typename T = uint64_t> T read_binary64(ifstream &stream) {
   T a;
   stream.read((char *)&a, sizeof(a));
@@ -338,7 +240,7 @@ int main(int argc, char **argv) {
 
   // translate command line parameters
   Args arg;
-  parseArgs(argc, argv, arg);
+  pfbwt_parseargs(argc, argv, arg);
   // read dictionary file
   FILE *g = open_aux_file(arg.basename, EXTDICT, "rb");
   fseek(g, 0, SEEK_END);
@@ -568,10 +470,9 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
 }
 
 bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
-  cout << "pos_in_limits: "<<  word_limit.first << " <= " << unsigned(pos) << " < "
-       << word_limit.second << " ?" << endl;
-  return (pos < (int)word_limit.second && pos >= (int)word_limit.
-  first);
+  cout << "pos_in_limits: " << word_limit.first << " <= " << unsigned(pos)
+       << " < " << word_limit.second << " ?" << endl;
+  return (pos < (int)word_limit.second && pos >= (int)word_limit.first);
 }
 
 // write to the bwt all the characters preceding a given suffix
@@ -588,9 +489,10 @@ static void fwrite_chars_same_suffix(
   if (samechar) {
     for (size_t i = 0; i < numwords; i++) {
       uint32_t s = id2merge[i];
-      auto limit_j = limits_ilist + istart[s];
+      // CHECK things around here
+      auto limit_j = limits_ilist + istart[s] - 1;
       for (long j = istart[s]; j < istart[s + 1]; j++) {
-        cout << "char to be written: "<< char2write[0] << endl;
+        cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
           if (fputc(char2write[0], fbwt) == EOF)
             die("BWT write error 1");
