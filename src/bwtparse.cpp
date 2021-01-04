@@ -13,11 +13,13 @@
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
+//#include <utility>
 #include <vector>
 extern "C" {
 #include "../external/utils.h"
 }
 #define all(x) begin(x), end(x)
+#define arg_w 10
 
 using namespace std;
 // Tree structure of the parse
@@ -188,6 +190,19 @@ int main(int argc, char *argv[]) {
   auto structure = graph_structure(filename, alphabet_parse);
   // cout << "structure: " << structure << endl;
 
+  // Reading limits
+  vector<pair<uint32_t, uint32_t>> phrase_limits;
+  ifstream limit_file(string(filename) + ".limits", ios::in | ios::binary);
+  for (long i = 0; i < structure.size(); i++) {
+    uint32_t l_start;
+    limit_file.read((char *)&l_start, sizeof(l_start));
+    uint32_t l_end;
+    limit_file.read((char *)&l_end, sizeof(l_end));
+    phrase_limits.push_back(make_pair(l_start, l_end));
+    cout << "limits: " << l_start << " " << l_end << endl;
+  }
+  limit_file.close();
+
   cout << "Compute wheeler order and then SA via doubling algorithm" << endl;
   vector<uint64_t> sa = doubling_algorithm(structure);
   // cout << "sa: " << sa << endl;
@@ -196,21 +211,27 @@ int main(int argc, char *argv[]) {
   cout << "Building the reverse graph for the BWT" << endl;
   uint64_t n = structure.size();
   vector<vector<uint32_t>> children_char(n + 1);
-  for (auto &e : structure) {
+  vector<vector<uint32_t>> children_char_limits(n + 1);
+  for (uint64_t i = 0; i < n; i++) {
+    auto e = structure[i];
     // fill with the chars of the children
     children_char[get<1>(e)].push_back(get<0>(e));
+    // Only insert if the next char has to be added (ie is in the limits)
+    if (phrase_limits[i].first <= arg_w){
+      children_char_limits[get<1>(e)].push_back(get<0>(e));
+    }
   }
   // cout << children_char << endl;
 
   vector<vector<uint32_t>> children_full_word(alphabet_parse + 1);
-  children_full_word[0] = children_char[0];
+  children_full_word[0] = children_char_limits[0];
   for (uint64_t i = 1; i < n; i++) {
     // link to the previous word
     if (get<1>(structure[i]) > 0) {
       auto e = structure[get<1>(structure[i]) - 1];
-      children_full_word[get<0>(e)].insert(children_full_word[get<0>(e)].end(),
-                                           children_char[i].begin(),
-                                           children_char[i].end());
+      for (uint64_t j = 0; j < children_char_limits[i].size(); j++) {
+        children_full_word[get<0>(e)].push_back(children_char_limits[i][j]);
+      }
     }
   }
   // cout << children_full_word << endl;
@@ -235,7 +256,11 @@ int main(int argc, char *argv[]) {
   for (uint32_t i = 1; i <= alphabet_parse; i++)
     F[i] = F[i - 1] + occ[i - 1];
   vector<uint32_t> ilist(n + 1, 0);
+  vector<pair<uint32_t, uint32_t>> ilist_limits(n + 1);
   for (uint32_t i = 0; i <= n; i++) {
+    //cout << "ilist_limits: " << F[BWT[i]] << " " << phrase_limits[BWT[i]] << " " << phrase_limits[i] << endl;
+    //ilist_limits[F[BWT[i]]] = phrase_limits[BWT[i]];
+    ilist_limits[F[BWT[i]]] = phrase_limits[i];
     ilist[F[BWT[i]]++] = i;
     occ[BWT[i]]--;
   }
@@ -248,11 +273,14 @@ int main(int argc, char *argv[]) {
   // Saving children ordered by sa
   auto children_file = ofstream(filename + ".full_children");
   uint32_t children_sep = alphabet_parse + 1;
+  cout << "children:" << endl;
   for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     write_binary(children_sep, children_file);
     for (auto &c : children_full_word[i]) {
       write_binary(c, children_file);
+      cout << c << " ";
     }
+    cout << endl;
   }
   children_file.close();
   cout << ".full_children file writen and closed" << endl;
@@ -261,6 +289,13 @@ int main(int argc, char *argv[]) {
   for (uint32_t i = 0; i < n + 1; i++)
     write_binary(ilist[i], ilist_file);
   ilist_file.close();
+  auto ilist_limits_file = ofstream(filename + ".limits_ilist");
+  for (uint32_t i = 0; i < n + 1; i++) {
+    cout << ilist_limits[i].first << " " << ilist_limits[i].second << endl;
+    write_binary(ilist_limits[i].first, ilist_limits_file);
+    write_binary(ilist_limits[i].second, ilist_limits_file);
+  }
+  ilist_limits_file.close();
   cout << ".ilist file writen and closed" << endl;
   printf("==== Elapsed time: %.0lf wall clock seconds\n",
          difftime(time(NULL), start_wc));
