@@ -33,4 +33,4 @@ clean:
 	rm -f $(EXECS)  external/*.o external/gsa/*.o
 
 clean_all:
-	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.limits data/*.limits_ilist 
+	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.limits data/*.bwt_limits data/*.bwt 
