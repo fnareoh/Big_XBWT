@@ -444,7 +444,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         else {
           if (!after_start) {
             after_start = true;
-            l_p_start = l_start - i + word.size() - 1;
+            l_p_start = l_start - i + word.size();
           } else
             l_p_start = 0;
         }
@@ -474,7 +474,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       else {
         if (!after_start) {
           after_start = true;
-          l_p_start = l_start - i + word.size() - 1;
+          l_p_start = l_start - i + word.size();
         } else
           l_p_start = 0;
       }
