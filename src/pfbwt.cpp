@@ -34,7 +34,7 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
     uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_ilist, vector<uint8_t> &pos);
+    pair<uint32_t, uint32_t> *limits_bwt, vector<uint8_t> &pos);
 static uint8_t *load_bwsa_info(Args &arg, long n);
 
 // class representing the suffix of a dictionary word
@@ -43,14 +43,14 @@ struct SeqId {
   uint32_t id;   // lex. id of the dictionary word to which the suffix belongs
   int remaining; // remaining copies of the suffix to be considered
   uint32_t *bwtpos; // list of bwt positions of this dictionary word
-  pair<uint32_t, uint32_t> *limits_ilist; // list of the limits of this word
+  pair<uint32_t, uint32_t> *limits_bwt; // list of the limits of this word
   uint8_t char2write; // char to be written (is the one preceeding the suffix)
   uint8_t pos;
 
   // constructor
   SeqId(uint32_t i, int r, uint32_t *b, int8_t c, pair<uint32_t, uint32_t> *d,
         uint8_t e)
-      : id(i), remaining(r), bwtpos(b), limits_ilist(d), pos(e) {
+      : id(i), remaining(r), bwtpos(b), limits_bwt(d), pos(e) {
     char2write = c;
   }
 
@@ -59,15 +59,15 @@ struct SeqId {
   bool next() {
     remaining--;
     bwtpos += 1;
-    limits_ilist++;
+    limits_bwt++;
     return remaining > 0;
   }
   bool operator<(const SeqId &a);
   bool in_limits() {
-    cout << "SedId in in_limits:" << limits_ilist->first
-         << " <= " << unsigned(pos) << " < " << limits_ilist->second << " ?"
+    cout << "SeqId in in_limits:" << limits_bwt->first
+         << " <= " << unsigned(pos) << " < " << limits_bwt->second << " ?"
          << endl;
-    return (pos < (int)limits_ilist->second && pos >= (int)limits_ilist->first);
+    return (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first);
   }
 };
 
@@ -93,7 +93,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
          long dwords, // starting point in ilist for each word and # words*
          vector<string> dict_word, // dictionary organized by word to make it
                                    // easier so get last
-         pair<uint32_t, uint32_t> *limits_ilist) {
+         pair<uint32_t, uint32_t> *limits_bwt) {
   // possibly read bwsa info file and open sa output file
   uint8_t *bwsainfo = load_bwsa_info(arg, psize);
   FILE *safile = NULL, *ssafile = NULL, *esafile = NULL;
@@ -194,13 +194,13 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
       } else
         break;
     }
-    cout << "full_words: " << full_words << endl;
-    cout << "easy_bwts: " << easy_bwts << endl;
-    cout << "hard_bwts: " << hard_bwts << endl;
     // output to fbwt the bwt chars corresponding to the current dictionary
     // suffix
     fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
-                             easy_bwts, hard_bwts, limits_ilist, pos2test);
+                             easy_bwts, hard_bwts, limits_bwt, pos2test);
+    cout << "full_words: " << full_words << endl;
+    cout << "easy_bwts: " << easy_bwts << endl;
+    cout << "hard_bwts: " << hard_bwts << endl;
   }
   // write very last Sa pair
   if (arg.sampledSA & END_RUN) {
@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
   occ[dwords] = psize;
 
   // read children file
-  ifstream file(string(arg.basename) + ".full_children", ios::in | ios::binary);
+  ifstream file(string(arg.basename) + "." + EXTCHILD, ios::in | ios::binary);
   uint32_t parsechar;
   file.read((char *)&parsechar, sizeof(parsechar));
   uint32_t sep = parsechar;
@@ -349,21 +349,21 @@ int main(int argc, char **argv) {
   }
 
   // read the limits file
-  vector<pair<uint32_t, uint32_t>> limits_ilist;
-  ifstream ilist_limit_file(string(arg.basename) + ".limits_ilist",
-                            ios::in | ios::binary);
+  vector<pair<uint32_t, uint32_t>> limits_bwt;
+  ifstream bwt_limit_file(string(arg.basename) + "." + EXTBWTLIM,
+                          ios::in | ios::binary);
   for (long i = 0; i < psize - 1; i++) {
     uint32_t l_start;
-    ilist_limit_file.read((char *)&l_start, sizeof(l_start));
+    bwt_limit_file.read((char *)&l_start, sizeof(l_start));
     uint32_t l_end;
-    ilist_limit_file.read((char *)&l_end, sizeof(l_end));
-    limits_ilist.push_back(make_pair(l_start, l_end));
-    cout << "limits_ilist: " << l_start << " " << l_end << endl;
+    bwt_limit_file.read((char *)&l_end, sizeof(l_end));
+    limits_bwt.push_back(make_pair(l_start, l_end));
+    cout << "limits_bwt: " << l_start << " " << l_end << endl;
   }
 
   // compute and write the final bwt
   bwt(arg, d, dsize, ilist, children, psize, occ, dwords, dict_word,
-      &limits_ilist[0]);
+      &limits_bwt[0]);
 
   delete[] ilist;
   delete[] occ;
@@ -471,7 +471,9 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
 
 bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
   cout << "pos_in_limits: " << word_limit.first << " <= " << unsigned(pos)
-       << " < " << word_limit.second << " ?" << endl;
+       << " < " << word_limit.second << " : "
+       << (pos < (int)word_limit.second && pos >= (int)word_limit.first)
+       << endl;
   return (pos < (int)word_limit.second && pos >= (int)word_limit.first);
 }
 
@@ -480,7 +482,7 @@ bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
     uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_ilist, vector<uint8_t> &pos2test) {
+    pair<uint32_t, uint32_t> *limits_bwt, vector<uint8_t> &pos2test) {
   size_t numwords =
       id2merge.size(); // numwords dictionary words contain the same suffix
   bool samechar = true;
@@ -489,9 +491,10 @@ static void fwrite_chars_same_suffix(
   if (samechar) {
     for (size_t i = 0; i < numwords; i++) {
       uint32_t s = id2merge[i];
-      // CHECK things around here
-      auto limit_j = limits_ilist + istart[s] - 1;
       for (long j = istart[s]; j < istart[s + 1]; j++) {
+        uint32_t index = *(ilist + j) - 1;
+        cout << "j - index: " << j << " - " << index << endl;
+        auto limit_j = limits_bwt + index;
         cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
           if (fputc(char2write[0], fbwt) == EOF)
@@ -501,13 +504,14 @@ static void fwrite_chars_same_suffix(
         limit_j++;
       }
     }
-  } else {              // many words, many chars...
+  } else { // many words, many chars...
+    cout << endl << "HARD CASE!!!" << endl << endl;
     vector<SeqId> heap; // create heap
     for (size_t i = 0; i < numwords; i++) {
       uint32_t s = id2merge[i];
-      heap.push_back(SeqId(s, istart[s + 1] - istart[s], ilist + istart[s],
-                           char2write[i], limits_ilist + istart[s],
-                           pos2test[i]));
+      heap.push_back(
+          SeqId(s, istart[s + 1] - istart[s], ilist + istart[s], char2write[i],
+                limits_bwt + (*(ilist + istart[s]) - 1), pos2test[i]));
     }
     std::make_heap(heap.begin(), heap.end());
     while (heap.size() > 0) {

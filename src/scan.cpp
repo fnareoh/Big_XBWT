@@ -207,7 +207,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   vector<pair<uint64_t, uint64_t>>
       start_phrase; // (Starting position of a phrase, hash of this phrase)
   FILE *sa_file = NULL;
-  auto limit_file = ofstream(arg.inputFileName + ".limits");
+  auto limit_file = ofstream(arg.inputFileName + "." + EXTLIM);
   // if requested open file containing the ending position+1 of each word
   if (arg.SAinfo)
     sa_file = open_aux_file(arg.inputFileName.c_str(), EXTSAI, "wb");
@@ -444,7 +444,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         else {
           if (!after_start) {
             after_start = true;
-            l_p_start = l_start - i + word.size();
+            l_p_start = l_start - i + word.size() - 1;
           } else
             l_p_start = 0;
         }
@@ -474,7 +474,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       else {
         if (!after_start) {
           after_start = true;
-          l_p_start = l_start - i + word.size();
+          l_p_start = l_start - i + word.size() - 1;
         } else
           l_p_start = 0;
       }
