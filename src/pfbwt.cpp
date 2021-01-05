@@ -65,8 +65,8 @@ struct SeqId {
   bool operator<(const SeqId &a);
   bool in_limits() {
     cout << "SeqId in in_limits:" << limits_bwt->first
-         << " <= " << unsigned(pos) << " < " << limits_bwt->second << " ?"
-         << endl;
+         << " <= " << unsigned(pos) << " < " << limits_bwt->second << " : "
+         << (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first) << endl;
     return (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first);
   }
 };
