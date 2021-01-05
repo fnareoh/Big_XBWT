@@ -127,9 +127,6 @@ static void save_update_word(Args &arg, string &w,
                              vector<pair<uint64_t, uint64_t>> &start_phrase,
                              FILE *sa, uint64_t &pos) {
   size_t minsize = arg.w;
-  // if (pos==0) cout << "pos,w.size()" << pos << " " << w.size() << endl;
-  // if (pos==8) cout << "pos,w.size()" << pos << " " << w.size() << endl;
-  // assert(pos == 0 || w.size() > minsize);
   if (w.size() <= minsize)
     return;
   // save overlap
@@ -444,7 +441,12 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         else {
           if (!after_start) {
             after_start = true;
+            cout << "i: " << i << endl;
+            cout << "l_start: " << l_start << endl;
+            cout << "word.size(): " << word.size() << endl;
+            cout << "pos_read: " << pos_read << endl;
             l_p_start = l_start - i + word.size();
+            if (pos_read==0) l_p_start -=1;
           } else
             l_p_start = 0;
         }
@@ -484,8 +486,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         l_p_end = word.size() - i + l_end;
       /*cout << "i: " << i << endl;
       cout << "word.size(): " << word.size() << endl;*/
-      cout << "WRITE end phrase l_p_start: " << l_p_start << endl;
-      cout << "WRITE end phrase l_p_end: " << l_p_end << endl;
+      cout << "LAST-WRITE end phrase l_p_start: " << l_p_start << endl;
+      cout << "LAST-WRITE end phrase l_p_end: " << l_p_end << endl;
       write_binary(l_p_start, limit_file);
       write_binary(l_p_end, limit_file);
       save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
