@@ -200,9 +200,9 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   }
 
   // open the 1st pass parsing file
-  FILE *g = open_aux_file(arg.inputFileName.c_str(), EXTPARS0, "wb");
-  vector<pair<uint64_t, uint64_t>>
-      start_phrase; // (Starting position of a phrase, hash of this phrase)
+  FILE *tmp_parse_file = open_aux_file(arg.inputFileName.c_str(), EXTPARS0, "wb");
+  // (Starting position of a phrase, hash of this phrase)
+  vector<pair<uint64_t, uint64_t>> start_phrase;
   FILE *sa_file = NULL;
   auto limit_file = ofstream(arg.inputFileName + "." + EXTLIM);
   // if requested open file containing the ending position+1 of each word
@@ -211,7 +211,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 
   // main loop on the chars of the input file
   cout << "Parsing the genome" << endl;
-  int c;
+  char c;
   string line = "";   // storing of a string used for the fasta format
   int index_line = 0; // storing the position in the line
   uint64_t pos = 0; // ending position +1 of previous word in the original text,
@@ -223,12 +223,12 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   string word("");
   word.append(arg.w, Dollar);
   // init empty KR window: constructor only needs window size
+  KR_window krw(arg.w);
 #ifdef OUTPUT_EXTENDED_READ
   ofstream extended_file;
   extended_file.open(arg.inputFileName + ".extended_input");
   extended_file << arg.w << endl;
 #endif
-  KR_window krw(arg.w);
   while (true) {
     if (is_fasta) {
       if ((long)index_line < (long)line.size()) {
@@ -256,6 +256,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     extended_file << (char)c;
 #endif
     uint64_t hash = krw.addchar(c);
+    //cout << c << " " << hash << endl;
     if (hash % arg.p == 0) {
       // end of word, save it and write its full hash to the output file
       // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" <<
@@ -265,7 +266,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       cout << "Ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
       write_binary(l_p_start, limit_file);
       write_binary(l_p_end, limit_file);
-      save_update_word(arg, word, wordFreq, g, true, start_phrase, sa_file,
+      save_update_word(arg, word, wordFreq, tmp_parse_file, true, start_phrase, sa_file,
                        pos);
     }
   }
@@ -275,7 +276,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   cout << "Last ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
   write_binary(l_p_start, limit_file);
   write_binary(l_p_end, limit_file);
-  save_update_word(arg, word, wordFreq, g, true, start_phrase, sa_file, pos);
+  save_update_word(arg, word, wordFreq, tmp_parse_file, true, start_phrase, sa_file, pos);
 
   assert(pos == krw.tot_char);
   cout << "Length of the parsed reference: " << start_phrase.size() << endl;
@@ -355,7 +356,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         start_phrase.begin() - 1;
     // ending position of the extended read in the parse
     uint64_t r_e_p = upper_bound(start_phrase.begin(), start_phrase.end(),
-                                 make_pair(pos_read + read.size(),
+                                 make_pair(pos_read + read.size()-1,
                                            numeric_limits<uint64_t>::max())) -
                      start_phrase.begin() - 1;
     /*cout << "pos_read " << pos_read << endl;
@@ -407,10 +408,10 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 
     // Put a sepatator in the parsing
     uint64_t separator = PRIME + 1;
-    if (fwrite(&separator, sizeof(separator), 1, g) != 1)
+    if (fwrite(&separator, sizeof(separator), 1, tmp_parse_file) != 1)
       die("parse write error");
     // Write the start of the extended read in the parse
-    if (fwrite(&r_s_p, sizeof(r_s_p), 1, g) != 1)
+    if (fwrite(&r_s_p, sizeof(r_s_p), 1, tmp_parse_file) != 1)
       die("parse write error");
 
     // Write the parsing of the extended read
@@ -419,19 +420,19 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     uint64_t i = 0;
     bool after_start = false;
     pos = start_phrase[r_s_p].first;
-    if (pos == 0) {
-      word = "";
-    } else {
-      word = read_extanded.substr(0, arg.w);
-      while ((long)i < (long)arg.w) {
-        krw.addchar(read_extanded[i]);
-        i++;
-      }
+
+    word = read_extanded.substr(0, arg.w);
+    while ((long)i < (long)arg.w) {
+      if (pos != 0) krw.addchar(read_extanded[i]);
+      //cout << read_extanded[i] << endl;
+      i++;
     }
+
     while (i < read_extanded.size()) {
       // cout << "i: " << i << " word.size(): " << word.size() << endl;
       word.append(1, read_extanded[i]);
       uint64_t hash = krw.addchar(read_extanded[i]);
+      //cout << read_extanded[i] << " " << hash << endl;
       if (hash % arg.p == 0) {
         // end of word, save it and write its full hash to the output file
         uint32_t l_p_start;
@@ -445,22 +446,22 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
             cout << "l_start: " << l_start << endl;
             cout << "word.size(): " << word.size() << endl;
             cout << "pos_read: " << pos_read << endl;
-            l_p_start = l_start - i + word.size();
-            if (pos_read==0) l_p_start -=1;
+            l_p_start = l_start - i + word.size()-1;
+            //if (pos_read==0) l_p_start -=1;
           } else
             l_p_start = 0;
         }
         if (i < l_end)
           l_p_end = word.size();
         else
-          l_p_end = word.size() - i + l_end;
+          l_p_end = word.size() - i + l_end -1;
         /*cout << "i: " << i << endl;
         cout << "word.size(): " << word.size() << endl;*/
         cout << "WRITE l_p_start: " << l_p_start << endl;
         cout << "WRITE l_p_end: " << l_p_end << endl;
         write_binary(l_p_start, limit_file);
         write_binary(l_p_end, limit_file);
-        save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
+        save_update_word(arg, word, wordFreq, tmp_parse_file, false, start_phrase, sa_file,
                          pos);
       }
       i++;
@@ -490,7 +491,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       cout << "LAST-WRITE end phrase l_p_end: " << l_p_end << endl;
       write_binary(l_p_start, limit_file);
       write_binary(l_p_end, limit_file);
-      save_update_word(arg, word, wordFreq, g, false, start_phrase, sa_file,
+      save_update_word(arg, word, wordFreq, tmp_parse_file, false, start_phrase, sa_file,
                        pos);
     }
     totChar += read_extanded.size() - arg.w;
@@ -502,7 +503,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   if (sa_file)
     if (fclose(sa_file) != 0)
       die("Error closing SA file");
-  if (fclose(g) != 0)
+  if (fclose(tmp_parse_file) != 0)
     die("Error closing parse file");
   f.close();
   return totChar;

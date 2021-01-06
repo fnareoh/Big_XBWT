@@ -299,6 +299,7 @@ int main(int argc, char **argv) {
   fclose(g);
   assert(dwords == get_num_words(d, dsize));
 
+
   // read ilist file
   g = open_aux_file(arg.basename, EXTILIST, "rb");
   fseek(g, 0, SEEK_END);
@@ -501,7 +502,6 @@ static void fwrite_chars_same_suffix(
             die("BWT write error 1");
           easy_bwts++;
         }
-        limit_j++;
       }
     }
   } else { // many words, many chars...
