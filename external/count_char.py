@@ -3,6 +3,7 @@ import sys
 dico = {}
 for i in range(1,len(sys.argv)):
     file = open(sys.argv[i], "r")
+    print(sys.argv[i], end= " ")
     while True:
         c = file.read(1)
         if not c:
@@ -13,6 +14,7 @@ for i in range(1,len(sys.argv)):
             dico[c]=1
         else:
             dico[c]+=1
+print()
 print(dico)
 tot=0
 for v in dico.values():
