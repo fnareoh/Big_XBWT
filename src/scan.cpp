@@ -447,7 +447,6 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
             cout << "word.size(): " << word.size() << endl;
             cout << "pos_read: " << pos_read << endl;
             l_p_start = l_start - i + word.size()-1;
-            //if (pos_read==0) l_p_start -=1;
           } else
             l_p_start = 0;
         }
