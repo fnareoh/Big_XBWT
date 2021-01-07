@@ -34,7 +34,7 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
     uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_bwt, vector<uint8_t> &pos);
+    pair<uint32_t, uint32_t> *limits_bwt, vector<uint64_t> &pos);
 static uint8_t *load_bwsa_info(Args &arg, long n);
 
 // class representing the suffix of a dictionary word
@@ -172,7 +172,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     vector<uint32_t> id2merge(1, seqid);
     vector<uint8_t> char2write(1, d[sa[i] - 1]);
     // vector<uint8_t> pos2test(1, dict_word[seqid].length() - suffixLen - 1);
-    vector<uint8_t> pos2test(1, suffixLen);
+    vector<uint64_t> pos2test(1, suffixLen);
     while (next < dsize && lcp[next] >= suffixLen &&
            (d[sa[next] - 1] != EndOfWord)) {
       cout << (next < dsize && lcp[next] >= suffixLen) << endl;
@@ -483,7 +483,7 @@ bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
     uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_bwt, vector<uint8_t> &pos2test) {
+    pair<uint32_t, uint32_t> *limits_bwt, vector<uint64_t> &pos2test) {
   size_t numwords =
       id2merge.size(); // numwords dictionary words contain the same suffix
   bool samechar = true;
