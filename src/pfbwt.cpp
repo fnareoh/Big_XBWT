@@ -43,6 +43,7 @@ struct SeqId {
   uint32_t id;   // lex. id of the dictionary word to which the suffix belongs
   int remaining; // remaining copies of the suffix to be considered
   uint32_t *bwtpos; // list of bwt positions of this dictionary word
+  pair<uint32_t, uint32_t> *limits_bwt_start; // list of the limits of this word
   pair<uint32_t, uint32_t> *limits_bwt; // list of the limits of this word
   uint8_t char2write; // char to be written (is the one preceeding the suffix)
   uint8_t pos;
@@ -50,8 +51,9 @@ struct SeqId {
   // constructor
   SeqId(uint32_t i, int r, uint32_t *b, int8_t c, pair<uint32_t, uint32_t> *d,
         uint8_t e)
-      : id(i), remaining(r), bwtpos(b), limits_bwt(d), pos(e) {
+      : id(i), remaining(r), bwtpos(b), limits_bwt_start(d), pos(e) {
     char2write = c;
+    limits_bwt = limits_bwt_start+ (*bwtpos-1);
   }
 
   // advance to the next bwt position, return false if there are no more
@@ -59,12 +61,12 @@ struct SeqId {
   bool next() {
     remaining--;
     bwtpos += 1;
-    limits_bwt += 1;
+    limits_bwt = limits_bwt_start+ (*bwtpos-1);
     return remaining > 0;
   }
   bool operator<(const SeqId &a);
   bool in_limits() {
-    cout << "SeqId in in_limits:" << limits_bwt->first
+    cout << "SeqId in in_limits: " << limits_bwt->first
          << " <= " << unsigned(pos) << " < " << limits_bwt->second << " : "
          << (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first) << endl;
     return (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first);
@@ -509,12 +511,14 @@ static void fwrite_chars_same_suffix(
       uint32_t s = id2merge[i];
       heap.push_back(
           SeqId(s, istart[s + 1] - istart[s], ilist + istart[s], char2write[i],
-                limits_bwt + (*(ilist + istart[s]) - 1), pos2test[i]));
+                limits_bwt, pos2test[i]));
     }
     std::make_heap(heap.begin(), heap.end());
     while (heap.size() > 0) {
       // output char for the top of the heap
       SeqId s = heap.front();
+      cout << "hard char to be written: " << s.char2write << endl;
+      cout << "bwt_pos: " << *s.bwtpos << endl;
       if (s.in_limits()) {
         if (fputc(s.char2write, fbwt) == EOF)
           die("BWT write error 2");

@@ -533,6 +533,7 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
     char *word = (*x).data();  // current dictionary word
     size_t len = (*x).size();  // offset and length of word
     reverse(word, word + len); // Reverse back to get the hash
+    cout << "phrase:" << word << endl;
     assert(len > (size_t)arg.w);
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);
@@ -660,7 +661,6 @@ int main(int argc, char **argv) {
     // reverse so that we sort in colexicographic order
     reverse(x.second.str.begin(), x.second.str.end());
     dictArray.push_back(&x.second.str);
-    cout << "phrase: " << x.second.str << endl;
   }
   assert(dictArray.size() == totDWord);
   cout << "Sum of lenghts of dictionary words: " << sumLen << endl;
