@@ -59,7 +59,7 @@ struct SeqId {
   bool next() {
     remaining--;
     bwtpos += 1;
-    limits_bwt++;
+    limits_bwt += 1;
     return remaining > 0;
   }
   bool operator<(const SeqId &a);
@@ -494,7 +494,6 @@ static void fwrite_chars_same_suffix(
       uint32_t s = id2merge[i];
       for (long j = istart[s]; j < istart[s + 1]; j++) {
         uint32_t index = *(ilist + j) - 1;
-        cout << "j - index: " << j << " - " << index << endl;
         auto limit_j = limits_bwt + index;
         cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
@@ -505,7 +504,6 @@ static void fwrite_chars_same_suffix(
       }
     }
   } else { // many words, many chars...
-    cout << endl << "HARD CASE!!!" << endl << endl;
     vector<SeqId> heap; // create heap
     for (size_t i = 0; i < numwords; i++) {
       uint32_t s = id2merge[i];
