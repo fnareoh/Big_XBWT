@@ -129,7 +129,7 @@ static void save_update_word(Args &arg, string &w,
   size_t minsize = arg.w;
   if (w.size() <= minsize)
     return;
-  cout << "word: " << w << endl;
+  if (arg.debug) cout << "word: " << w << endl;
   // save overlap
   string overlap(w.substr(w.size() - minsize)); // keep last minsize chars
 
@@ -163,7 +163,6 @@ static void save_update_word(Args &arg, string &w,
       exit(1);
     }
   }
-  cout << "nb occ word: " << freq[hash].occ << endl;
 
   // update sa files
   // compute ending position +1 of current word and write it to sa file
@@ -264,8 +263,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       // krw.get_window() << ">" <<  endl;
       uint32_t l_p_start = 0;
       uint32_t l_p_end = word.size();
-      cout << "Ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
       if (word.size() >  (unsigned) arg.w){
+        if (arg.debug) cout << "Ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
         write_binary(l_p_start, limit_file);
         write_binary(l_p_end, limit_file);
       }
@@ -276,7 +275,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   // add the last word in the dict
   uint32_t l_p_start = 0;
   uint32_t l_p_end = word.size();
-  cout << "Last ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
+  if (arg.debug) cout << "Last ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
   if (word.size() > (unsigned) arg.w){
     write_binary(l_p_start, limit_file);
     write_binary(l_p_end, limit_file);
@@ -287,9 +286,9 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   cout << "Length of the parsed reference: " << start_phrase.size() << endl;
   uint64_t totChar = krw.tot_char;
 
-#ifdef OUTPUT_EXTENDED_READ
-  extended_file << endl;
-#endif
+  #ifdef OUTPUT_EXTENDED_READ
+    extended_file << endl;
+  #endif
   // ----------------------- Parsing the reads  -------------------------------
   cout << "Parsing the reads" << endl;
 
@@ -338,7 +337,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       // break;
 
     }
-#ifdef BAM_READER
+    #ifdef BAM_READER
     // get input if we are using the bam format
     else {
       if (!reader.GetNextAlignment(al))
@@ -350,7 +349,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       if (pos_read == -1)
         continue;
     }
-#endif
+    #endif
 
     // ------------------ Retrieve the extended read --------------------------
 
@@ -364,21 +363,24 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
                                  make_pair(pos_read + read.size()-1,
                                            numeric_limits<uint64_t>::max())) -
                      start_phrase.begin() - 1;
-    /*cout << "pos_read " << pos_read << endl;
-    cout << "pos_read_end " << pos_read + read.size() << endl;
-    cout << "r_s_p " << r_s_p << endl;
-    cout << "r_e_p " << r_e_p << endl;*/
 
     assert(r_s_p < start_phrase.size());
     assert(r_e_p < start_phrase.size());
     // phrase we are going to extend the read with, at the front and at the end
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
-    /*cout << "start_phrases: " << start_phrase[r_s_p].first << " end_phrase "
-         << start_phrase[r_e_p].first + size(back_phrase) << endl;
-    cout << "start_phrases r_e_p+1: " << start_phrase[r_e_p + 1].first << endl;
-    cout << "len_phrases: " << size(front_phrase) << " " << size(back_phrase)
-         << endl;*/
+
+    if (arg.debug){
+      cout << "pos_read " << pos_read << endl;
+      cout << "pos_read_end " << pos_read + read.size() << endl;
+      cout << "r_s_p " << r_s_p << endl;
+      cout << "r_e_p " << r_e_p << endl;
+      cout << "start_phrases: " << start_phrase[r_s_p].first << " end_phrase "
+      << start_phrase[r_e_p].first + size(back_phrase) << endl;
+      cout << "len_phrases: " << size(front_phrase) << " " << size(back_phrase)
+      << endl;
+      cout << "start_phrases r_e_p+1: " << start_phrase[r_e_p + 1].first << endl;
+    }
 
     // The extended read that will be parsed in to phrases
     string read_extanded;
@@ -392,19 +394,16 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     } else {
       l_start = pos_read + arg.w - start_phrase[r_s_p].first;
       l_end = pos_read + read.size() - start_phrase[r_e_p].first + arg.w;
-      // cout << "l_start: " << l_start << endl;
-      // cout << "l_end: " << l_end << endl;
       read_extanded =
           front_phrase.substr(0, l_start) + read + back_phrase.substr(l_end);
       l_end = read_extanded.size() - back_phrase.size() + l_end;
-      // cout << "final l_end: " << l_end << endl;
     }
-    // l_start = l_start-arg.w;
-    // l_end = l_end-arg.w;
-    cout << "read: " << read << endl;
-    cout << "read_extanded: " << read_extanded << endl;
-    cout << "l_start: " << l_start << endl;
-    cout << "l_end: " << l_end << endl;
+    if (arg.debug){
+      cout << "read: " << read << endl;
+      cout << "read_extanded: " << read_extanded << endl;
+      cout << "l_start: " << l_start << endl;
+      cout << "l_end: " << l_end << endl;
+    }
 #ifdef OUTPUT_EXTENDED_READ
     extended_file << start_phrase[r_s_p].first << " "
                   << read_extanded.substr(10) << endl;
@@ -430,15 +429,12 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     word = read_extanded.substr(0, arg.w);
     while ((long)i < (long)arg.w) {
       if (pos != 0) krw.addchar(read_extanded[i]);
-      //cout << read_extanded[i] << endl;
       i++;
     }
 
     while (i < read_extanded.size()) {
-      // cout << "i: " << i << " word.size(): " << word.size() << endl;
       word.append(1, read_extanded[i]);
       uint64_t hash = krw.addchar(read_extanded[i]);
-      //cout << read_extanded[i] << " " << hash << endl;
       if (hash % arg.p == 0) {
         // end of word, save it and write its full hash to the output file
         uint32_t l_p_start;
@@ -448,10 +444,6 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         else {
           if (!after_start) {
             after_start = true;
-            cout << "i: " << i << endl;
-            cout << "l_start: " << l_start << endl;
-            cout << "word.size(): " << word.size() << endl;
-            cout << "pos_read: " << pos_read << endl;
             l_p_start = l_start - i + word.size()-1;
           } else
             l_p_start = 0;
@@ -460,12 +452,15 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
           l_p_end = word.size();
         else
           l_p_end = word.size() - i + l_end -1;
-        /*cout << "i: " << i << endl;
-        cout << "word.size(): " << word.size() << endl;*/
-        cout << "WRITE l_p_start: " << l_p_start << endl;
-        cout << "WRITE l_p_end: " << l_p_end << endl;
+
+        if (word.size() >  (unsigned) arg.w){
+        if (arg.debug){
+          cout << "WRITE l_p_start: " << l_p_start << endl;
+          cout << "WRITE l_p_end: " << l_p_end << endl;
+        }
         write_binary(l_p_start, limit_file);
         write_binary(l_p_end, limit_file);
+        }
         save_update_word(arg, word, wordFreq, tmp_parse_file, false, start_phrase, sa_file,
                          pos);
       }
@@ -490,12 +485,15 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         l_p_end = word.size();
       else
         l_p_end = word.size() - i + l_end;
-      /*cout << "i: " << i << endl;
-      cout << "word.size(): " << word.size() << endl;*/
-      cout << "LAST-WRITE end phrase l_p_start: " << l_p_start << endl;
-      cout << "LAST-WRITE end phrase l_p_end: " << l_p_end << endl;
-      write_binary(l_p_start, limit_file);
-      write_binary(l_p_end, limit_file);
+
+      if (word.size() >  (unsigned) arg.w){
+        if (arg.debug){
+          cout << "LAST-WRITE end phrase l_p_start: " << l_p_start << endl;
+          cout << "LAST-WRITE end phrase l_p_end: " << l_p_end << endl;
+        }
+        write_binary(l_p_start, limit_file);
+        write_binary(l_p_end, limit_file);
+      }
       save_update_word(arg, word, wordFreq, tmp_parse_file, false, start_phrase, sa_file,
                        pos);
     }
@@ -533,7 +531,7 @@ void writeDictOcc(Args &arg, map<uint64_t, word_stats> &wfreq,
     char *word = (*x).data();  // current dictionary word
     size_t len = (*x).size();  // offset and length of word
     reverse(word, word + len); // Reverse back to get the hash
-    cout << "phrase:" << word << endl;
+    if (arg.debug) cout << "phrase:" << word << endl;
     assert(len > (size_t)arg.w);
     uint64_t hash = kr_hash(*x);
     auto &wf = wfreq.at(hash);

@@ -130,8 +130,11 @@ vector<uint64_t> doubling_algorithm(graph_structure_t &graph_structure) {
     order[i] = i;
     i++;
   }
-  // cout << intermediate << endl;
-  // cout << order << endl;
+  Args arg;
+  if (arg.debug) {
+    cout << intermediate << endl;
+    cout << order << endl;
+  }
 
   while (true) {
     stable_sort(all(order), [&](const uint64_t lhs, const uint64_t rhs) {
@@ -159,7 +162,6 @@ vector<uint64_t> doubling_algorithm(graph_structure_t &graph_structure) {
     if (!cont) {
       break;
     }
-    // cout << intermediate << endl;
   }
   // To avoid equalities, put a total ordering
   i = 0;
@@ -183,14 +185,14 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++)
     printf(" %s", argv[i]);
   puts("");
-  Args args;
+  Args arg;
   // start measuring wall clock time
   time_t start_wc = time(NULL);
   cout << "Get the structure of the tree" << endl;
   // read parse file
   uint32_t alphabet_parse = 0;
   auto structure = graph_structure(filename, alphabet_parse);
-  // cout << "structure: " << structure << endl;
+  if (arg.debug) cout << "structure: " << structure << endl;
 
   // Reading limits
   vector<pair<uint32_t, uint32_t>> phrase_limits;
@@ -201,13 +203,12 @@ int main(int argc, char *argv[]) {
     uint32_t l_end;
     limit_file.read((char *)&l_end, sizeof(l_end));
     phrase_limits.push_back(make_pair(l_start, l_end));
-    cout << "limits: " << l_start << " " << l_end << endl;
   }
   limit_file.close();
 
   cout << "Compute wheeler order and then SA via doubling algorithm" << endl;
   vector<uint64_t> sa = doubling_algorithm(structure);
-  // cout << "sa: " << sa << endl;
+  if (arg.debug) cout << "sa: " << sa << endl;
 
   // inversing the graph so we can build a BWT
   cout << "Building the reverse graph for the BWT" << endl;
@@ -222,12 +223,14 @@ int main(int argc, char *argv[]) {
     children_char[get<1>(e)].push_back(get<0>(e));
 
     // Only insert if the next char has to be added (ie is in the limits)
-    if (phrase_limits[i].first <= (unsigned) args.w) {
+    if (phrase_limits[i].first <= (unsigned) arg.w) {
       children_char_in_limits[get<1>(e)].push_back(get<0>(e));
     }
   }
-  // cout << "children_char: " << children_char << endl;
-  // cout << "children_limits: " << children_limits << endl;
+  if (arg.debug){
+     cout << "children_char: " << children_char << endl;
+   cout << "children_limits: " << children_limits << endl;
+  }
 
   vector<vector<uint32_t>> children_full_word(alphabet_parse + 1);
   children_full_word[0] = children_char_in_limits[0];
@@ -240,7 +243,7 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  // cout << children_full_word << endl;
+  if (arg.debug) cout << children_full_word << endl;
 
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
@@ -252,7 +255,7 @@ int main(int argc, char *argv[]) {
       bwt_limits.push_back(children_limits[sa[i]][j]);
     }
   }
-  // cout << "BWT: " << BWT << endl;
+  if (arg.debug) cout << "BWT: " << BWT << endl;
 
   // Creating the F vector
   ifstream file_occ(filename + "." + EXTOCC, ios::in | ios::binary);
@@ -271,7 +274,7 @@ int main(int argc, char *argv[]) {
   for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     assert(occ[i] == 0);
   }
-  // cout << "ilist: " << ilist << endl;
+  if (arg.debug) cout << "ilist: " << ilist << endl;
 
   cout << "Saving files" << endl;
   // Saving children ordered by sa
@@ -282,28 +285,22 @@ int main(int argc, char *argv[]) {
     write_binary(children_sep, children_file);
     for (auto &c : children_full_word[i]) {
       write_binary(c, children_file);
-      cout << c << " ";
     }
-    cout << endl;
   }
   children_file.close();
   cout << EXTCHILD << " file writen and closed" << endl;
   // Saving ilist
   auto ilist_file = ofstream(filename + "." + EXTILIST);
-  cout << "ilist: " << endl;
   for (uint32_t i = 0; i < n + 1; i++) {
     write_binary(ilist[i], ilist_file);
-    cout << ilist[i] << endl;
   }
   ilist_file.close();
   cout << EXTILIST << " file writen and closed" << endl;
   auto bwt_limits_file = ofstream(filename + "." + EXTBWTLIM);
   for (uint32_t i = 0; i < bwt_limits.size(); i++) {
-    cout << bwt_limits[i].first << " " << bwt_limits[i].second << endl;
     write_binary(bwt_limits[i].first, bwt_limits_file);
     write_binary(bwt_limits[i].second, bwt_limits_file);
   }
-  bwt_limits_file.close();
   cout << EXTBWTLIM << " file writen and closed" << endl;
   printf("==== Elapsed time: %.0lf wall clock seconds\n",
          difftime(time(NULL), start_wc));
