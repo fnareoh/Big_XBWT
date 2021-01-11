@@ -183,6 +183,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++)
     printf(" %s", argv[i]);
   puts("");
+  Args args;
   // start measuring wall clock time
   time_t start_wc = time(NULL);
   cout << "Get the structure of the tree" << endl;
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]) {
     children_char[get<1>(e)].push_back(get<0>(e));
 
     // Only insert if the next char has to be added (ie is in the limits)
-    if (phrase_limits[i].first <= arg_w) {
+    if (phrase_limits[i].first <= (unsigned) args.w) {
       children_char_in_limits[get<1>(e)].push_back(get<0>(e));
     }
   }

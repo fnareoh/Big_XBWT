@@ -129,6 +129,7 @@ static void save_update_word(Args &arg, string &w,
   size_t minsize = arg.w;
   if (w.size() <= minsize)
     return;
+  cout << "word: " << w << endl;
   // save overlap
   string overlap(w.substr(w.size() - minsize)); // keep last minsize chars
 
@@ -264,8 +265,10 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       uint32_t l_p_start = 0;
       uint32_t l_p_end = word.size();
       cout << "Ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
-      write_binary(l_p_start, limit_file);
-      write_binary(l_p_end, limit_file);
+      if (word.size() >  (unsigned) arg.w){
+        write_binary(l_p_start, limit_file);
+        write_binary(l_p_end, limit_file);
+      }
       save_update_word(arg, word, wordFreq, tmp_parse_file, true, start_phrase, sa_file,
                        pos);
     }
@@ -274,8 +277,10 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   uint32_t l_p_start = 0;
   uint32_t l_p_end = word.size();
   cout << "Last ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
-  write_binary(l_p_start, limit_file);
-  write_binary(l_p_end, limit_file);
+  if (word.size() > (unsigned) arg.w){
+    write_binary(l_p_start, limit_file);
+    write_binary(l_p_end, limit_file);
+  }
   save_update_word(arg, word, wordFreq, tmp_parse_file, true, start_phrase, sa_file, pos);
 
   assert(pos == krw.tot_char);
@@ -365,6 +370,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     cout << "r_e_p " << r_e_p << endl;*/
 
     assert(r_s_p < start_phrase.size());
+    assert(r_e_p < start_phrase.size());
     // phrase we are going to extend the read with, at the front and at the end
     string front_phrase = wordFreq[start_phrase[r_s_p].second].str;
     string back_phrase = wordFreq[start_phrase[r_e_p].second].str;
