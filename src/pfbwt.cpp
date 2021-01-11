@@ -26,6 +26,8 @@ extern "C" {
 using namespace std;
 using namespace __gnu_cxx;
 
+bool Debug= false;
+
 static long get_num_words(uint8_t *d, long n);
 static long binsearch(uint_t x, uint_t a[], long n);
 static int_t getlen(uint_t p, uint_t eos[], long n, uint32_t *seqid);
@@ -66,9 +68,11 @@ struct SeqId {
   }
   bool operator<(const SeqId &a);
   bool in_limits() {
-    cout << "SeqId in in_limits: " << limits_bwt->first
+    if (Debug) {
+      cout << "SeqId in in_limits: " << limits_bwt->first
          << " <= " << unsigned(pos) << " < " << limits_bwt->second << " : "
          << (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first) << endl;
+    }
     return (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first);
   }
 };
@@ -133,11 +137,8 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
 
   // Adding the first characters for wich the contest is only w dollars
   for (uint32_t w : children[0]) {
-    cout << "w: " << w << endl;
     // compute next bwt char
-    cout << "Compute nextbwt for last_char: " << w - 1 << endl;
     int nextbwt = last_char(arg, w - 1, dict_word);
-    cout << "nextbwt: " << char(nextbwt) << endl;
     // in any case output BWT char
     if (fputc(nextbwt, fbwt) == EOF)
       die("BWT write error 0");
@@ -161,7 +162,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
       for (uint32_t w : children[seqid + 1]) {
         // compute next bwt char
         uint8_t nextbwt = last_char(arg, w - 1, dict_word);
-        cout << "char written nextbwt: " << char(nextbwt) << endl;
         // in any case output BWT char
         if (fputc(nextbwt, fbwt) == EOF)
           die("BWT write error 0");
@@ -177,13 +177,9 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     vector<uint64_t> pos2test(1, suffixLen);
     while (next < dsize && lcp[next] >= suffixLen &&
            (d[sa[next] - 1] != EndOfWord)) {
-      cout << (next < dsize && lcp[next] >= suffixLen) << endl;
       // the lcp cannot be greater than suffixLen
       assert(lcp[next] == suffixLen);
       // sa[next] cannot be a full word
-      // cout << sa[next] << endl;
-      // cout << d[sa[next] - 1] << endl;
-      // cout << (d[sa[next] - 1] == EndOfWord) << endl;
       assert(sa[next] > 0 && d[sa[next] - 1] != EndOfWord);
       int_t nextsuffixLen = getlen(sa[next], eos, dwords, &seqid);
       assert(nextsuffixLen >= suffixLen);
@@ -200,9 +196,12 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // suffix
     fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
                              easy_bwts, hard_bwts, limits_bwt, pos2test);
-    cout << "full_words: " << full_words << endl;
-    cout << "easy_bwts: " << easy_bwts << endl;
-    cout << "hard_bwts: " << hard_bwts << endl;
+
+    if (Debug) {
+      cout << "full_words: " << full_words << endl;
+      cout << "easy_bwts: " << easy_bwts << endl;
+      cout << "hard_bwts: " << hard_bwts << endl;
+    }
   }
   // write very last Sa pair
   if (arg.sampledSA & END_RUN) {
@@ -242,6 +241,7 @@ int main(int argc, char **argv) {
 
   // translate command line parameters
   Args arg;
+  Debug = arg.debug;
   pfbwt_parseargs(argc, argv, arg);
   // read dictionary file
   FILE *g = open_aux_file(arg.basename, EXTDICT, "rb");
@@ -361,7 +361,6 @@ int main(int argc, char **argv) {
     uint32_t l_end;
     bwt_limit_file.read((char *)&l_end, sizeof(l_end));
     limits_bwt.push_back(make_pair(l_start, l_end));
-    cout << "limits_bwt: " << l_start << " " << l_end << endl;
   }
 
   // compute and write the final bwt
@@ -473,10 +472,12 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
 }
 
 bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
-  cout << "pos_in_limits: " << word_limit.first << " <= " << unsigned(pos)
+  if (Debug) {
+    cout << "pos_in_limits: " << word_limit.first << " <= " << unsigned(pos)
        << " < " << word_limit.second << " : "
        << (pos < (int)word_limit.second && pos >= (int)word_limit.first)
        << endl;
+  }
   return (pos < (int)word_limit.second && pos >= (int)word_limit.first);
 }
 
@@ -497,7 +498,7 @@ static void fwrite_chars_same_suffix(
       for (long j = istart[s]; j < istart[s + 1]; j++) {
         uint32_t index = *(ilist + j) - 1;
         auto limit_j = limits_bwt + index;
-        cout << "char to be written: " << char2write[0] << endl;
+        if (Debug) cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
           if (fputc(char2write[0], fbwt) == EOF)
             die("BWT write error 1");
@@ -517,8 +518,7 @@ static void fwrite_chars_same_suffix(
     while (heap.size() > 0) {
       // output char for the top of the heap
       SeqId s = heap.front();
-      cout << "hard char to be written: " << s.char2write << endl;
-      cout << "bwt_pos: " << *s.bwtpos << endl;
+      if (Debug) cout << "hard char to be written: " << s.char2write << endl;
       if (s.in_limits()) {
         if (fputc(s.char2write, fbwt) == EOF)
           die("BWT write error 2");
