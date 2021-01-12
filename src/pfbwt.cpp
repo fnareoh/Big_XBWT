@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <random>
 #include <semaphore.h>
@@ -27,6 +28,10 @@ using namespace std;
 using namespace __gnu_cxx;
 
 bool Debug= false;
+char last_rle_char = ' ';
+uint32_t run_length = 0;
+uint32_t max_run_length = (uint32_t)-1;
+bool RLE= false;
 
 static long get_num_words(uint8_t *d, long n);
 static long binsearch(uint_t x, uint_t a[], long n);
@@ -85,6 +90,26 @@ uint8_t last_char(Args &arg, uint32_t word, vector<string> &dict_word) {
 
 bool SeqId::operator<(const SeqId &a) { return *bwtpos > *(a.bwtpos); }
 
+void write_bwt(char c, FILE* fbwt){
+  if (RLE){
+    if (last_rle_char== ' ') last_rle_char = c;
+    if (c != last_rle_char){
+      if (fputc(last_rle_char, fbwt) == EOF) die("BWT write error");
+      if (fwrite(&run_length,sizeof(run_length),1, fbwt) != 1) die("BWT write error");
+      if (Debug) cout << last_rle_char << " " << run_length << endl;
+      last_rle_char = c;
+      run_length = 1;
+    }
+    else {
+      if (run_length == max_run_length) die("max run_length error");
+      run_length++;
+    }
+}
+  else {
+    if (fputc(c, fbwt) == EOF) die("BWT write error");
+  }
+}
+
 /* *******************************************************************
  * Computation of the final BWT
  *
@@ -140,8 +165,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     // compute next bwt char
     int nextbwt = last_char(arg, w - 1, dict_word);
     // in any case output BWT char
-    if (fputc(nextbwt, fbwt) == EOF)
-      die("BWT write error 0");
+    write_bwt(nextbwt,fbwt);
     easy_bwts++;
   }
   cout << "Finished adding the first characters" << endl;
@@ -163,8 +187,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         // compute next bwt char
         uint8_t nextbwt = last_char(arg, w - 1, dict_word);
         // in any case output BWT char
-        if (fputc(nextbwt, fbwt) == EOF)
-          die("BWT write error 0");
+        write_bwt(nextbwt,fbwt);
         easy_bwts++;
       }
       continue; // proceed with next i
@@ -212,6 +235,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
       die("sampled SA write error 0f");
   }
   assert(full_words == dwords);
+  if (RLE) write_bwt(' ',fbwt);
   cout << "Full words: " << full_words << endl;
   cout << "Easy bwt chars: " << easy_bwts << endl;
   cout << "Hard bwt chars: " << hard_bwts << endl;
@@ -242,6 +266,7 @@ int main(int argc, char **argv) {
   // translate command line parameters
   Args arg;
   Debug = arg.debug;
+  RLE = arg.rle;
   pfbwt_parseargs(argc, argv, arg);
   // read dictionary file
   FILE *g = open_aux_file(arg.basename, EXTDICT, "rb");
@@ -500,8 +525,7 @@ static void fwrite_chars_same_suffix(
         auto limit_j = limits_bwt + index;
         if (Debug) cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
-          if (fputc(char2write[0], fbwt) == EOF)
-            die("BWT write error 1");
+          write_bwt(char2write[0],fbwt);
           easy_bwts++;
         }
       }
@@ -520,8 +544,7 @@ static void fwrite_chars_same_suffix(
       SeqId s = heap.front();
       if (Debug) cout << "hard char to be written: " << s.char2write << endl;
       if (s.in_limits()) {
-        if (fputc(s.char2write, fbwt) == EOF)
-          die("BWT write error 2");
+        write_bwt(s.char2write,fbwt);
         hard_bwts += 1;
       }
       // remove top

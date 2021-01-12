@@ -43,6 +43,7 @@ struct Args {
   bool SA = false;   // output all SA values
   int sampledSA = 0; // output sampled SA values
   bool debug = false;
+  bool rle = true;
 };
 
 void scan_parseargs(int argc, char **argv, Args &arg);
