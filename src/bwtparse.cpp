@@ -280,7 +280,6 @@ int main(int argc, char *argv[]) {
   // Saving children ordered by sa
   auto children_file = ofstream(filename + "." + EXTCHILD);
   uint32_t children_sep = alphabet_parse + 1;
-  cout << "children:" << endl;
   for (uint32_t i = 0; i < alphabet_parse + 1; i++) {
     write_binary(children_sep, children_file);
     for (auto &c : children_full_word[i]) {

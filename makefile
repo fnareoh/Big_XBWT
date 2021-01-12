@@ -10,6 +10,12 @@ EXECS=scan.x scan_BAM_READER.x scan_extended.x bwtparse.x pfbwt.x
 
 all: scan.x bwtparse.x pfbwt.x
 
+external/gsa/gsacak.o: external/gsa/gsacak.c external/gsa/gsacak.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+external/gsa/gsacak64.o: external/gsa/gsacak.c external/gsa/gsacak.h
+	$(CC) $(CFLAGS) -c -o $@ $< -DM64
+
 scan.x: src/scan.cpp src/parameters.cpp external/utils.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
@@ -26,6 +32,10 @@ bwtparse.x: src/bwtparse.cpp external/malloc_count.o external/utils.o
 pfbwt.x: src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak.o external/utils.o external/malloc_count.o
 	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
 
+pfbwt64.x: src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak64.o external/utils.o external/malloc_count.o
+	$(CXX) $(CXX_FLAGS) -o $@ src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak64.o external/utils.o external/malloc_count.o -ldl -DM64
+
+
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -33,4 +43,4 @@ clean:
 	rm -f $(EXECS)  external/*.o external/gsa/*.o
 
 clean_all:
-	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.limits data/*.bwt_limits data/*.bwt 
+	rm -f $(EXECS)  external/*.o external/gsa/*.o test/xbwt_of_reference.x data/*.occ data/*.dict data/*.parse data/*.parse_old data/*.ilist data/*.extended_input data/*.full_children data/*.limits data/*.bwt_limits data/*.bwt

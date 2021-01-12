@@ -386,7 +386,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     string read_extanded;
     uint32_t l_start;
     uint32_t l_end;
-    if (pos_read + read.size() >
+    if (pos_read + read.size() + arg.w >
         start_phrase[r_e_p].first + size(back_phrase)) {
       l_start = pos_read + arg.w - start_phrase[r_s_p].first;
       read_extanded = front_phrase.substr(0, l_start) + read;
