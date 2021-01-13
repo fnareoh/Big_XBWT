@@ -9,6 +9,9 @@ def count(name_file):
     dico = {}
     for name in name_file:
         file = open(name, "r")
+        if name.split('.')[-1] == "fasta":
+            fasta = file.readline()
+            print(fasta)
         print(name, end= " ")
         while True:
             c = file.read(1)
