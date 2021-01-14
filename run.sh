@@ -4,5 +4,4 @@ make
 ./scan.x $REF $READS
 ./bwtparse.x $REF
 ./pfbwt.x $REF
-python external/count_char.py $REF $READS
-python external/count_char.py $REF.bwt
+python external/count_char_check.py $REF $READS
