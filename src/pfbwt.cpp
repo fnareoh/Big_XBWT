@@ -53,11 +53,11 @@ struct SeqId {
   pair<uint32_t, uint32_t> *limits_bwt_start; // list of the limits of this word
   pair<uint32_t, uint32_t> *limits_bwt; // list of the limits of this word
   uint8_t char2write; // char to be written (is the one preceeding the suffix)
-  uint8_t pos;
+  uint32_t pos;
 
   // constructor
   SeqId(uint32_t i, int r, uint32_t *b, int8_t c, pair<uint32_t, uint32_t> *d,
-        uint8_t e)
+        uint32_t e)
       : id(i), remaining(r), bwtpos(b), limits_bwt_start(d), pos(e) {
     char2write = c;
     limits_bwt = limits_bwt_start+ (*bwtpos-1);
@@ -76,9 +76,9 @@ struct SeqId {
     if (Debug) {
       cout << "SeqId in in_limits: " << limits_bwt->first
          << " <= " << unsigned(pos) << " < " << limits_bwt->second << " : "
-         << (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first) << endl;
+         << (pos < limits_bwt->second && pos >= limits_bwt->first) << endl;
     }
-    return (pos < (int)limits_bwt->second && pos >= (int)limits_bwt->first);
+    return (pos < limits_bwt->second && pos >= limits_bwt->first);
   }
 };
 
@@ -496,14 +496,14 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
   *lcpp = lcp;
 }
 
-bool pos_in_limits(int_t pos, pair<uint32_t, uint32_t> word_limit) {
+bool pos_in_limits(uint32_t pos, pair<uint32_t, uint32_t> word_limit) {
   if (Debug) {
     cout << "pos_in_limits: " << word_limit.first << " <= " << unsigned(pos)
        << " < " << word_limit.second << " : "
-       << (pos < (int)word_limit.second && pos >= (int)word_limit.first)
+       << (pos < word_limit.second && pos >= word_limit.first)
        << endl;
   }
-  return (pos < (int)word_limit.second && pos >= (int)word_limit.first);
+  return (pos < word_limit.second && pos >= word_limit.first);
 }
 
 // write to the bwt all the characters preceding a given suffix

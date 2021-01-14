@@ -203,6 +203,7 @@ int main(int argc, char *argv[]) {
     uint32_t l_end;
     limit_file.read((char *)&l_end, sizeof(l_end));
     phrase_limits.push_back(make_pair(l_start, l_end));
+    if (arg.debug) cout << "limits: " << l_start << " " << l_end << endl;
   }
   limit_file.close();
 
@@ -223,7 +224,7 @@ int main(int argc, char *argv[]) {
     children_char[get<1>(e)].push_back(get<0>(e));
 
     // Only insert if the next char has to be added (ie is in the limits)
-    if (phrase_limits[i].first <= (unsigned) arg.w) {
+    if (phrase_limits[i].first == (unsigned) arg.w && phrase_limits[i].second > (unsigned) arg.w) {
       children_char_in_limits[get<1>(e)].push_back(get<0>(e));
     }
   }

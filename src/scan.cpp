@@ -261,7 +261,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       // end of word, save it and write its full hash to the output file
       // cerr << "~"<< c << "~ " << hash << " ~~ <" << word << "> ~~ <" <<
       // krw.get_window() << ">" <<  endl;
-      uint32_t l_p_start = 0;
+      uint32_t l_p_start = arg.w;
       uint32_t l_p_end = word.size();
       if (word.size() >  (unsigned) arg.w){
         if (arg.debug) cout << "Ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
@@ -273,7 +273,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
     }
   }
   // add the last word in the dict
-  uint32_t l_p_start = 0;
+  uint32_t l_p_start = arg.w;
   uint32_t l_p_end = word.size();
   if (arg.debug) cout << "Last ref l_start l_end: " << l_p_start << " " << l_p_end << endl;
   if (word.size() > (unsigned) arg.w){
@@ -446,7 +446,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
             after_start = true;
             l_p_start = l_start - i + word.size()-1;
           } else
-            l_p_start = 0;
+            l_p_start = arg.w;
         }
         if (i < l_end)
           l_p_end = word.size();
@@ -479,7 +479,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
           after_start = true;
           l_p_start = l_start - i + word.size();
         } else
-          l_p_start = 0;
+          l_p_start = arg.w;
       }
       if (i < l_end)
         l_p_end = word.size();
