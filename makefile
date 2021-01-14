@@ -8,7 +8,7 @@ EXECS=scan.x scan_BAM_READER.x scan_extended.x bwtparse.x pfbwt.x
 # targets not producing a file declared phony
 .PHONY: all clean tarfile
 
-all: scan.x bwtparse.x pfbwt.x
+all: scan.x scan_BAM_READER.x bwtparse.x pfbwt.x pfbwt64.x
 
 external/gsa/gsacak.o: external/gsa/gsacak.c external/gsa/gsacak.h
 	$(CC) $(CFLAGS) -c -o $@ $<
