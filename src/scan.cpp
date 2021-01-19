@@ -346,7 +346,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       read = al.QueryBases;
       if (read == "" || read == "*")
         continue;
-      if (pos_read == -1)
+      if (pos_read == (long unsigned int) -1)
         continue;
     }
     #endif
