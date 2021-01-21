@@ -95,7 +95,7 @@ void write_bwt(char c, FILE* fbwt){
     if (last_rle_char== ' ') last_rle_char = c;
     if (c != last_rle_char){
       if (fputc(last_rle_char, fbwt) == EOF) die("BWT write error");
-      fprintf(fbwt, "%u ", run_length);
+      fprintf(fbwt, "%u\n", run_length);
       if (Debug) cout << last_rle_char << " " << run_length << endl;
       last_rle_char = c;
       run_length = 1;

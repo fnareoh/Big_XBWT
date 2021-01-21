@@ -33,14 +33,12 @@ def count(name_file):
 def count_rle(name_file):
     dico = {}
     for name in name_file:
-        file = open(name, "rb")
+        file = open(name, "r")
+        bwt = file.read().split("\n")[:-1]
         print(name, end= " ")
-        while True:
-            bin_s = file.read(1)
-            if not bin_s:
-                break
-            c = struct.unpack('c', bin_s)[0].decode()
-            nb = struct.unpack('i', file.read(4))[0]
+        for s in bwt:
+            c = s[0]
+            nb = int(s[1:])
             if c < 'A' or c > 'Z':
                 pass
             elif c not in dico:
