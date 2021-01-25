@@ -4,10 +4,11 @@ import struct
 assert(len(sys.argv)==3)
 name_file = [sys.argv[1],sys.argv[2]]
 name_file_bwt = [sys.argv[1]+".bwt"]
+name_end = sys.argv[1]+".is_end"
 
-def count(name_file):
+def count(name_files):
     dico = {}
-    for name in name_file:
+    for name in name_files:
         file = open(name, "r")
         if name.split('.')[-1] == "fasta":
             fasta = file.readline()
@@ -30,9 +31,9 @@ def count(name_file):
         tot+=v
     return tot
 
-def count_rle(name_file):
+def count_rle(name_files):
     dico = {}
-    for name in name_file:
+    for name in name_files:
         file = open(name, "r")
         bwt = file.read().split("\n")[:-1]
         print(name, end= " ")
@@ -52,8 +53,30 @@ def count_rle(name_file):
         tot+=v
     return tot
 
+def bits(f):
+    while True:
+        b = f.read(1)
+        if not b: break
+        b = ord(b)
+        for i in reversed(range(8)):
+            yield b >> i & 1
+
+def count_is_end(name):
+    tot_is_end = 0
+    nb_char = 0
+    with open(name, "rb") as file:
+         for bit in bits(file):
+             #print(bit, end="")
+             tot_is_end += bit
+             nb_char +=1
+    print()
+    print("Number of 1 in is_end vector: ",tot_is_end)
+    #print(nb_char)
+
+
 tot = count(name_file)
 tot_bwt = count_rle(name_file_bwt)
+count_is_end(name_end)
 
 print(tot,"=?",tot_bwt)
 if (tot== tot_bwt):

@@ -12,6 +12,7 @@
 #define EXTCHILD "full_children"
 #define EXTLIM "limits"
 #define EXTBWTLIM "bwt_limits"
+#define EXTBWTEND "bwt_end"
 #define EXTSAI "sai"
 #define EXTBWSAI "bwsai"
 #define EXTILIST "ilist"
