@@ -217,17 +217,25 @@ int main(int argc, char *argv[]) {
   vector<vector<uint32_t>> children_char(n + 1);
   vector<vector<pair<uint32_t, uint32_t>>> children_limits(n + 1);
   vector<vector<uint32_t>> children_char_in_limits(n + 1);
+  vector<vector<bool>> is_end_of_string(n+1);
+  int tot_is_end=0;
   for (uint64_t i = 0; i < n; i++) {
     auto e = structure[i];
     // fill with the chars of the children
     children_limits[get<1>(e)].push_back(phrase_limits[i]);
     children_char[get<1>(e)].push_back(get<0>(e));
+    if (i == n-1 || get<1>(structure[i+1]) != (i +1)){
+      is_end_of_string[get<1>(e)].push_back(true);
+      tot_is_end = tot_is_end +1;
+    }
+    else is_end_of_string[get<1>(e)].push_back(false);
 
     // Only insert if the next char has to be added (ie is in the limits)
     if (phrase_limits[i].first == (unsigned) arg.w && phrase_limits[i].second > (unsigned) arg.w) {
       children_char_in_limits[get<1>(e)].push_back(get<0>(e));
     }
   }
+  cout << "tot_is_end structure: " << tot_is_end << endl;
   if (arg.debug){
      cout << "children_char: " << children_char << endl;
    cout << "children_limits: " << children_limits << endl;
@@ -249,11 +257,13 @@ int main(int argc, char *argv[]) {
   cout << "Compute the BWT from the SA" << endl;
   vector<uint32_t> BWT;
   vector<pair<uint32_t, uint32_t>> bwt_limits;
+  vector<bool> bwt_is_end_of_string;
   BWT.push_back(0); // empty word
   for (uint64_t i = 0; i < n + 1; i++) {
     for (uint64_t j = 0; j < children_char[sa[i]].size(); j++) {
       BWT.push_back(children_char[sa[i]][j]);
       bwt_limits.push_back(children_limits[sa[i]][j]);
+      bwt_is_end_of_string.push_back(is_end_of_string[sa[i]][j]);
     }
   }
   if (arg.debug) cout << "BWT: " << BWT << endl;
@@ -297,11 +307,15 @@ int main(int argc, char *argv[]) {
   ilist_file.close();
   cout << EXTILIST << " file writen and closed" << endl;
   auto bwt_limits_file = ofstream(filename + "." + EXTBWTLIM);
+  auto bwt_end_file = ofstream(filename + "." + EXTBWTEND);
   for (uint32_t i = 0; i < bwt_limits.size(); i++) {
     write_binary(bwt_limits[i].first, bwt_limits_file);
     write_binary(bwt_limits[i].second, bwt_limits_file);
+    write_binary(int(bwt_is_end_of_string[i]),bwt_end_file);
+    if (arg.debug) cout << bwt_is_end_of_string[i] << endl;
   }
   cout << EXTBWTLIM << " file writen and closed" << endl;
+  cout << EXTBWTEND << " file writen and closed" << endl;
   printf("==== Elapsed time: %.0lf wall clock seconds\n",
          difftime(time(NULL), start_wc));
   return 0;

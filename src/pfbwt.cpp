@@ -31,6 +31,8 @@ bool Debug= false;
 char last_rle_char = ' ';
 uint32_t run_length = 0;
 uint32_t max_run_length = (uint32_t)-1;
+unsigned char buf = 0;
+int nb_writen_buf = 0;
 bool RLE= false;
 
 static long get_num_words(uint8_t *d, long n);
@@ -40,8 +42,8 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
                                  uint_t **sap, int_t **lcpp);
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_bwt, vector<uint64_t> &pos);
+    uint32_t *istart, FILE *fbwt, ofstream &fis_end, long &easy_bwts, long &hard_bwts,
+    pair<uint32_t, uint32_t> *limits_bwt, const vector<bool> & is_end_bwt, vector<uint64_t> &pos);
 static uint8_t *load_bwsa_info(Args &arg, long n);
 
 // class representing the suffix of a dictionary word
@@ -96,7 +98,7 @@ void write_bwt(char c, FILE* fbwt){
     if (c != last_rle_char){
       if (fputc(last_rle_char, fbwt) == EOF) die("BWT write error");
       fprintf(fbwt, "%u\n", run_length);
-      if (Debug) cout << last_rle_char << " " << run_length << endl;
+      if (Debug) cout << "run: " << last_rle_char << " " << run_length << endl;
       last_rle_char = c;
       run_length = 1;
     }
@@ -107,6 +109,16 @@ void write_bwt(char c, FILE* fbwt){
 }
   else {
     if (fputc(c, fbwt) == EOF) die("BWT write error");
+  }
+}
+
+void write_bool(bool b, ofstream& fis_end){
+  buf = buf + (b << (7-nb_writen_buf)) ;
+  nb_writen_buf++;
+  if (nb_writen_buf == 7) {
+    fis_end.write((char*) &buf, sizeof(buf));
+    nb_writen_buf = 0;
+    buf=0;
   }
 }
 
@@ -124,7 +136,8 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
          long dwords, // starting point in ilist for each word and # words*
          vector<string> dict_word, // dictionary organized by word to make it
                                    // easier so get last
-         pair<uint32_t, uint32_t> *limits_bwt) {
+         pair<uint32_t, uint32_t> *limits_bwt,
+         const vector<bool> & is_end_bwt) {
   // possibly read bwsa info file and open sa output file
   uint8_t *bwsainfo = load_bwsa_info(arg, psize);
   FILE *safile = NULL, *ssafile = NULL, *esafile = NULL;
@@ -149,6 +162,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
 
   // open output file
   FILE *fbwt = open_aux_file(arg.basename, "bwt", "wb");
+  ofstream fis_end (string(arg.basename)+".is_end", ios::out | ios::binary);
 
   cout << "Opening the output file" << endl;
   // main loop: consider each entry in the SA of dict
@@ -166,6 +180,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     int nextbwt = last_char(arg, w - 1, dict_word);
     // in any case output BWT char
     write_bwt(nextbwt,fbwt);
+    write_bool(false,fis_end);
     easy_bwts++;
   }
   cout << "Finished adding the first characters" << endl;
@@ -188,6 +203,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         uint8_t nextbwt = last_char(arg, w - 1, dict_word);
         // in any case output BWT char
         write_bwt(nextbwt,fbwt);
+        write_bool(false,fis_end);
         easy_bwts++;
       }
       continue; // proceed with next i
@@ -217,8 +233,8 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     }
     // output to fbwt the bwt chars corresponding to the current dictionary
     // suffix
-    fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
-                             easy_bwts, hard_bwts, limits_bwt, pos2test);
+    fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt, fis_end,
+                             easy_bwts, hard_bwts, limits_bwt, is_end_bwt, pos2test);
 
     if (Debug) {
       cout << "full_words: " << full_words << endl;
@@ -236,6 +252,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   }
   assert(full_words == dwords);
   if (RLE) write_bwt(' ',fbwt);
+  fis_end.write((char*) &buf, sizeof(buf));
   cout << "Full words: " << full_words << endl;
   cout << "Easy bwt chars: " << easy_bwts << endl;
   cout << "Hard bwt chars: " << hard_bwts << endl;
@@ -378,19 +395,29 @@ int main(int argc, char **argv) {
 
   // read the limits file
   vector<pair<uint32_t, uint32_t>> limits_bwt;
+  vector<bool> is_end_bwt(psize-1,false);
   ifstream bwt_limit_file(string(arg.basename) + "." + EXTBWTLIM,
                           ios::in | ios::binary);
+  ifstream bwt_end_file(string(arg.basename) + "." + EXTBWTEND,
+                          ios::in | ios::binary);
+  int tot_is_end = 0;
   for (long i = 0; i < psize - 1; i++) {
     uint32_t l_start;
     bwt_limit_file.read((char *)&l_start, sizeof(l_start));
     uint32_t l_end;
     bwt_limit_file.read((char *)&l_end, sizeof(l_end));
     limits_bwt.push_back(make_pair(l_start, l_end));
+    int is_end;
+    bwt_end_file.read((char*)&is_end,sizeof(is_end));
+    is_end_bwt[i] = is_end;
+    tot_is_end = tot_is_end + is_end_bwt[i];
+    if (arg.debug) cout << is_end_bwt[i] << endl;
   }
+  cout << "tot_is_end: " << tot_is_end << endl;
 
   // compute and write the final bwt
   bwt(arg, d, dsize, ilist, children, psize, occ, dwords, dict_word,
-      &limits_bwt[0]);
+      &limits_bwt[0],is_end_bwt);
 
   delete[] ilist;
   delete[] occ;
@@ -510,8 +537,8 @@ bool pos_in_limits(uint32_t pos, pair<uint32_t, uint32_t> word_limit) {
 // doing a merge operation if necessary
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
-    pair<uint32_t, uint32_t> *limits_bwt, vector<uint64_t> &pos2test) {
+    uint32_t *istart, FILE *fbwt, ofstream &fis_end, long &easy_bwts, long &hard_bwts,
+    pair<uint32_t, uint32_t> *limits_bwt, const vector<bool> & is_end_bwt, vector<uint64_t> &pos2test) {
   size_t numwords =
       id2merge.size(); // numwords dictionary words contain the same suffix
   bool samechar = true;
@@ -526,6 +553,14 @@ static void fwrite_chars_same_suffix(
         if (Debug) cout << "char to be written: " << char2write[0] << endl;
         if (pos_in_limits(pos2test[i], *limit_j)) {
           write_bwt(char2write[0],fbwt);
+          bool is_end;
+          if (pos2test[i] == limit_j->second-1 && is_end_bwt[index]){
+            is_end = true;
+          }
+          else {
+            is_end = false;
+          }
+          write_bool(is_end,fis_end);
           easy_bwts++;
         }
       }
@@ -545,6 +580,14 @@ static void fwrite_chars_same_suffix(
       if (Debug) cout << "hard char to be written: " << s.char2write << endl;
       if (s.in_limits()) {
         write_bwt(s.char2write,fbwt);
+        bool is_end;
+        if (s.pos == s.limits_bwt->second-1 && is_end_bwt[(long unsigned int) *s.bwtpos-1]){
+          is_end = true;
+        }
+        else {
+          is_end = false;
+        }
+        write_bool(is_end,fis_end);
         hard_bwts += 1;
       }
       // remove top
