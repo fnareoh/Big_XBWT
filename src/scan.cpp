@@ -291,6 +291,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   #endif
   // ----------------------- Parsing the reads  -------------------------------
   cout << "Parsing the reads" << endl;
+  uint64_t nb_reads = 0;
 
   // open read file
   fnam = arg.ReadsFileName;
@@ -311,6 +312,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   }
 
 #ifdef BAM_READER
+  ofstream bam_txt_file;
+  bam_txt_file.open(fnam + ".txt");
   // if we are using the bam format get the BamReader
   BamReader reader;
   if (is_bam) {
@@ -349,10 +352,11 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
       if (pos_read == (long unsigned int) -1)
         continue;
     }
+    bam_txt_file << read << endl;
     #endif
 
     // ------------------ Retrieve the extended read --------------------------
-
+    nb_reads ++;
     // starting position of the extended read in the parse
     uint64_t r_s_p =
         upper_bound(start_phrase.begin(), start_phrase.end(),
@@ -502,6 +506,10 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
 #ifdef OUTPUT_EXTENDED_READ
   extended_file.close();
 #endif
+#ifdef BAM_READER
+  bam_txt_file.close();
+#endif
+cout << "Number of reads: " << nb_reads << endl;
   // close input and output files
   if (sa_file)
     if (fclose(sa_file) != 0)
