@@ -11,8 +11,8 @@
 #define EXTLST "last"
 #define EXTCHILD "full_children"
 #define EXTLIM "limits"
-#define EXTBWTLIM "bwt_limits"
-#define EXTBWTEND "bwt_end"
+#define EXTBWTLIM "xbwt_limits"
+#define EXTBWTEND "xbwt_end"
 #define EXTSAI "sai"
 #define EXTBWSAI "bwsai"
 #define EXTILIST "ilist"
@@ -25,6 +25,7 @@
 #define START_RUN 1
 #define END_RUN 2
 
+namespace args{
 // -------------------------------------------------------------
 // struct containing command line parameters and other globals for scan.cpp
 struct Args {
@@ -46,6 +47,7 @@ struct Args {
   bool debug = false;
   bool rle = true;
 };
+}
 
-void scan_parseargs(int argc, char **argv, Args &arg);
-void pfbwt_parseargs(int argc, char **argv, Args &arg);
+void scan_parseargs(int argc, char **argv, args::Args &arg);
+void pfbwt_parseargs(int argc, char **argv, args::Args &arg);

@@ -23,6 +23,7 @@ extern "C" {
 #define arg_w 10
 
 using namespace std;
+using namespace args;
 // Tree structure of the parse
 using graph_structure_t = vector<tuple<uint32_t, uint64_t>>;
 

@@ -24,6 +24,7 @@ using namespace BamTools;
 #endif
 
 using namespace std;
+using namespace args;
 // using namespace __gnu_cxx;
 
 // =============== algorithm limits ===================
@@ -229,6 +230,7 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
   extended_file.open(arg.inputFileName + ".extended_input");
   extended_file << arg.w << endl;
 #endif
+  int nb_sequences = 0;
   while (true) {
     if (is_fasta) {
       if ((long)index_line < (long)line.size()) {
@@ -243,6 +245,8 @@ uint64_t process_file(Args &arg, map<uint64_t, word_stats> &wordFreq) {
         index_line = 0;
         if (line[0] == '>') {
           index_line = line.size();
+          nb_sequences++;
+          cout << "nb_sequences: " <<  nb_sequences << endl;
         }
         continue;
       }

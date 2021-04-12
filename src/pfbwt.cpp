@@ -1,3 +1,4 @@
+#include <sdsl/bit_vectors.hpp>
 #include "parameters.hpp"
 #include <algorithm>
 #include <assert.h>
@@ -31,8 +32,9 @@ bool Debug= false;
 char last_rle_char = ' ';
 uint32_t run_length = 0;
 uint32_t max_run_length = (uint32_t)-1;
-unsigned char buf = 0;
-int nb_writen_buf = 0;
+uint64_t tot_nb_char = 0;
+uint64_t tot_nb_1_is_end =0;
+sdsl::bit_vector is_end;
 bool RLE= false;
 
 static long get_num_words(uint8_t *d, long n);
@@ -42,9 +44,9 @@ static void compute_dict_bwt_lcp(uint8_t *d, long dsize, long dwords, int w,
                                  uint_t **sap, int_t **lcpp);
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, ofstream &fis_end, long &easy_bwts, long &hard_bwts,
+    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
     pair<uint32_t, uint32_t> *limits_bwt, const vector<bool> & is_end_bwt, vector<uint64_t> &pos);
-static uint8_t *load_bwsa_info(Args &arg, long n);
+static uint8_t *load_bwsa_info(args::Args &arg, long n);
 
 // class representing the suffix of a dictionary word
 // instances of this class are stored to a heap to handle the hard bwts
@@ -85,7 +87,7 @@ struct SeqId {
 };
 
 // Get the character at w+1 position from the end of the word.
-uint8_t last_char(Args &arg, uint32_t word, vector<string> &dict_word) {
+uint8_t last_char(args::Args &arg, uint32_t word, vector<string> &dict_word) {
   uint8_t res = dict_word[word][dict_word[word].length() - arg.w - 1];
   return res;
 }
@@ -112,14 +114,10 @@ void write_bwt(char c, FILE* fbwt){
   }
 }
 
-void write_bool(bool b, ofstream& fis_end){
-  buf = buf + (b << (7-nb_writen_buf)) ;
-  nb_writen_buf++;
-  if (nb_writen_buf == 7) {
-    fis_end.write((char*) &buf, sizeof(buf));
-    nb_writen_buf = 0;
-    buf=0;
-  }
+void write_bool(bool b){
+  is_end[tot_nb_char]=b;
+  tot_nb_char++;
+  if (b) tot_nb_1_is_end++;
 }
 
 /* *******************************************************************
@@ -129,7 +127,7 @@ void write_bool(bool b, ofstream& fis_end){
  * (considered in colexicographic order) for k=istart[i]...istart[i+1]-1
  * ilist[k] contains the ordered positions in BWT(P) containing word i
  * ******************************************************************* */
-void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
+void bwt(args::Args &arg, uint8_t *d, long dsize, // dictionary and its size
          uint32_t *ilist, vector<vector<uint32_t>> children,
          long psize, // ilist, last and their size
          uint32_t *istart,
@@ -162,7 +160,6 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
 
   // open output file
   FILE *fbwt = open_aux_file(arg.basename, "bwt", "wb");
-  ofstream fis_end (string(arg.basename)+".is_end", ios::out | ios::binary);
 
   cout << "Opening the output file" << endl;
   // main loop: consider each entry in the SA of dict
@@ -180,7 +177,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     int nextbwt = last_char(arg, w - 1, dict_word);
     // in any case output BWT char
     write_bwt(nextbwt,fbwt);
-    write_bool(false,fis_end);
+    write_bool(false);
     easy_bwts++;
   }
   cout << "Finished adding the first characters" << endl;
@@ -203,7 +200,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
         uint8_t nextbwt = last_char(arg, w - 1, dict_word);
         // in any case output BWT char
         write_bwt(nextbwt,fbwt);
-        write_bool(false,fis_end);
+        write_bool(false);
         easy_bwts++;
       }
       continue; // proceed with next i
@@ -233,7 +230,7 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
     }
     // output to fbwt the bwt chars corresponding to the current dictionary
     // suffix
-    fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt, fis_end,
+    fwrite_chars_same_suffix(id2merge, char2write, ilist, istart, fbwt,
                              easy_bwts, hard_bwts, limits_bwt, is_end_bwt, pos2test);
 
     if (Debug) {
@@ -252,7 +249,8 @@ void bwt(Args &arg, uint8_t *d, long dsize, // dictionary and its size
   }
   assert(full_words == dwords);
   if (RLE) write_bwt(' ',fbwt);
-  fis_end.write((char*) &buf, sizeof(buf));
+  cout << "Total number of char: " << tot_nb_char << endl;
+  cout << "Total number of end of word: " << tot_nb_1_is_end << endl;
   cout << "Full words: " << full_words << endl;
   cout << "Easy bwt chars: " << easy_bwts << endl;
   cout << "Hard bwt chars: " << hard_bwts << endl;
@@ -281,7 +279,7 @@ int main(int argc, char **argv) {
   time_t start = time(NULL);
 
   // translate command line parameters
-  Args arg;
+  args::Args arg;
   Debug = arg.debug;
   RLE = arg.rle;
   pfbwt_parseargs(argc, argv, arg);
@@ -401,6 +399,7 @@ int main(int argc, char **argv) {
   ifstream bwt_end_file(string(arg.basename) + "." + EXTBWTEND,
                           ios::in | ios::binary);
   int tot_is_end = 0;
+  uint64_t total_nb_char = 0;
   for (long i = 0; i < psize - 1; i++) {
     uint32_t l_start;
     bwt_limit_file.read((char *)&l_start, sizeof(l_start));
@@ -412,12 +411,19 @@ int main(int argc, char **argv) {
     is_end_bwt[i] = is_end;
     tot_is_end = tot_is_end + is_end_bwt[i];
     if (arg.debug) cout << is_end_bwt[i] << endl;
+    total_nb_char = total_nb_char + max(0,(long long int)limits_bwt[i].second - (long long int)limits_bwt[i].first);
   }
   cout << "tot_is_end: " << tot_is_end << endl;
+  cout << "Total number of char: " << total_nb_char << endl;
+  is_end = sdsl::bit_vector(total_nb_char, 0);
 
   // compute and write the final bwt
   bwt(arg, d, dsize, ilist, children, psize, occ, dwords, dict_word,
       &limits_bwt[0],is_end_bwt);
+
+  sdsl::sd_vector<> sparse_is_end(is_end);
+  sdsl::store_to_file(sparse_is_end, string(arg.basename) + ".is_end" +".sdsl");
+
 
   delete[] ilist;
   delete[] occ;
@@ -429,7 +435,7 @@ int main(int argc, char **argv) {
 
 // --------------------- aux functions ----------------------------------
 
-static uint8_t *load_bwsa_info(Args &arg, long n) {
+static uint8_t *load_bwsa_info(args::Args &arg, long n) {
   // maybe sa info is not really needed
   if (arg.SA == false and arg.sampledSA == 0)
     return NULL;
@@ -537,7 +543,7 @@ bool pos_in_limits(uint32_t pos, pair<uint32_t, uint32_t> word_limit) {
 // doing a merge operation if necessary
 static void fwrite_chars_same_suffix(
     vector<uint32_t> &id2merge, vector<uint8_t> &char2write, uint32_t *ilist,
-    uint32_t *istart, FILE *fbwt, ofstream &fis_end, long &easy_bwts, long &hard_bwts,
+    uint32_t *istart, FILE *fbwt, long &easy_bwts, long &hard_bwts,
     pair<uint32_t, uint32_t> *limits_bwt, const vector<bool> & is_end_bwt, vector<uint64_t> &pos2test) {
   size_t numwords =
       id2merge.size(); // numwords dictionary words contain the same suffix
@@ -560,7 +566,7 @@ static void fwrite_chars_same_suffix(
           else {
             is_end = false;
           }
-          write_bool(is_end,fis_end);
+          write_bool(is_end);
           easy_bwts++;
         }
       }
@@ -587,7 +593,7 @@ static void fwrite_chars_same_suffix(
         else {
           is_end = false;
         }
-        write_bool(is_end,fis_end);
+        write_bool(is_end);
         hard_bwts += 1;
       }
       // remove top

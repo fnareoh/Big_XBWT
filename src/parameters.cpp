@@ -3,7 +3,7 @@
 
 using namespace std;
 
-void scan_print_help(char **argv, Args &args) {
+void scan_print_help(char **argv, args::Args &args) {
   cout << "Usage: " << argv[0] << " <input filename> [options]" << endl;
   cout << "  Options: " << endl
        << "\t-w W\tsliding window size, def. " << args.w << endl
@@ -14,7 +14,7 @@ void scan_print_help(char **argv, Args &args) {
   exit(1);
 }
 
-void scan_parseargs(int argc, char **argv, Args &arg) {
+void scan_parseargs(int argc, char **argv, args::Args &arg) {
   int c;
   extern char *optarg;
   extern int optind;
@@ -76,7 +76,7 @@ void scan_parseargs(int argc, char **argv, Args &arg) {
   }
 }
 
-void pfbwt_print_help(char **argv, Args &args) {
+void pfbwt_print_help(char **argv, args::Args &args) {
   cout << "Usage: " << argv[0] << " <input filename> [options]" << endl;
   cout << "  Options: " << endl
        << "\t-w W\tsliding window size, def. " << args.w << endl
@@ -89,7 +89,7 @@ void pfbwt_print_help(char **argv, Args &args) {
   exit(1);
 }
 
-void pfbwt_parseargs(int argc, char **argv, Args &arg) {
+void pfbwt_parseargs(int argc, char **argv, args::Args &arg) {
   int c;
   extern char *optarg;
   extern int optind;
