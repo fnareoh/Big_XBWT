@@ -3,7 +3,8 @@ CXX_FLAGS=-std=c++17 -O3 -Wall -Wextra -g -lstdc++
 CFLAGS=-O3 -Wall -std=c99 -g
 CC=gcc
 BAM_FLAGS=-I $(HOME)/include/bamtools/ -L $(HOME)/lib/
-EXECS=scan.x scan_BAM_READER.x scan_extended.x bwtparse.x pfbwt.x
+SDSL_FLAGS= -I ~/include -L ~/lib
+EXECS=scan.x scan_BAM_READER.x scan_extended.x bwtparse.x pfbwt.x pfbwt64.x
 
 # targets not producing a file declared phony
 .PHONY: all clean tarfile
@@ -30,10 +31,10 @@ bwtparse.x: src/bwtparse.cpp external/malloc_count.o external/utils.o
 
 # prefix free BWT construction
 pfbwt.x: src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak.o external/utils.o external/malloc_count.o
-	$(CXX) $(CXX_FLAGS) -o $@ $^ -ldl
+	$(CXX) $(CXX_FLAGS) $(SDSL_FLAGS) -o $@ $^ -ldl -lsdsl
 
 pfbwt64.x: src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak64.o external/utils.o external/malloc_count.o
-	$(CXX) $(CXX_FLAGS) -o $@ src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak64.o external/utils.o external/malloc_count.o -ldl -DM64
+	$(CXX) $(CXX_FLAGS) $(SDSL_FLAGS) -o $@ src/pfbwt.cpp src/parameters.cpp external/gsa/gsacak64.o external/utils.o external/malloc_count.o -ldl -DM64 -lsdsl
 
 
 %.o: %.c %.h
