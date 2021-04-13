@@ -3,6 +3,7 @@
 
 # directory containing the input files
 DIR=~/Documents/Big_XBWT/data/hydrophilia
+NAME=hydrophilia_raw_ctg
 # use ln -s to create the links ref.fasta -> reference  reads.fastq -> reads
 REF=ref.fasta
 READS=reads.fastq
@@ -26,7 +27,7 @@ SAM=aln-se.sam
 
 
 
-all: $(DIR)/summary.runs
+all: $(DIR)/$(NAME).runs_summary
 
 $(GAMMARLE):
 	gcc $(GAMMARLE).c -o $(GAMMARLE)
@@ -55,15 +56,15 @@ $(DIR)/ebwtSP.runs: $(DIR)/$(BAM).fasta
 	$(GAMMARLE) tmpSP.bwt -s 36 >> $@
 
 # create summary
-$(DIR)/summary.runs: $(DIR)/ebwtSP.runs $(DIR)/ebwtRLO.runs $(DIR)/ebwt.runs $(DIR)/xbwt.runs
-	echo "-------- ebwt" >> $(DIR)/summary.runs
-	cat $(DIR)/ebwt.runs >> $(DIR)/summary.runs
-	echo "-------- ebwt SPRING" >> $(DIR)/summary.runs
-	cat $(DIR)/ebwtSP.runs >> $(DIR)/summary.runs
-	echo "-------- ebwt RLO" >> $(DIR)/summary.runs
-	cat $(DIR)/ebwtRLO.runs >> $(DIR)/summary.runs
-	echo "-------- xbwt" >> $(DIR)/summary.runs
-	cat $(DIR)/xbwt.runs >> $(DIR)/summary.runs
+$(DIR)/$(NAME).runs_summary: $(DIR)/ebwtSP.runs $(DIR)/ebwtRLO.runs $(DIR)/ebwt.runs $(DIR)/xbwt.runs
+	echo "-------- ebwt" >> $(DIR)/$(NAME).runs_summary
+	cat $(DIR)/ebwt.runs >> $(DIR)/$(NAME).runs_summary
+	echo "-------- ebwt SPRING" >> $(DIR)/$(NAME).runs_summary
+	cat $(DIR)/ebwtSP.runs >> $(DIR)/$(NAME).runs_summary
+	echo "-------- ebwt RLO" >> $(DIR)/$(NAME).runs_summary
+	cat $(DIR)/ebwtRLO.runs >> $(DIR)/$(NAME).runs_summary
+	echo "-------- xbwt" >> $(DIR)/$(NAME).runs_summary
+	cat $(DIR)/xbwt.runs >> $(DIR)/$(NAME).runs_summary
 
 
 # create fasta file containing aligned reads from bam.txt file
@@ -84,7 +85,7 @@ $(DIR)/x$(REF): $(DIR)/$(REF)
 # compute bam file from sam
 $(DIR)/$(BAM): $(DIR)/$(SAM)
 	python $(REV) $<
-	$(SAMTOOLS)  view -S -b $<.no_reverse > $@
+	$(SAMTOOLS)  view -S -b $<.filtered > $@
 	#$(SAMTOOLS)  view -S -b $< > $@
 
 # compute sam file from ref and reads
@@ -94,5 +95,5 @@ $(DIR)/$(SAM): $(DIR)/$(REF) $(DIR)/$(READS)
 
 
 clean:
-	rm -fr tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*.runs $(DIR)/$(BAM).fasta
+	rm -fr gammarle tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*runs $(DIR)/$(BAM).fasta
 

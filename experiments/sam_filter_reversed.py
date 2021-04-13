@@ -7,7 +7,7 @@ nb_filtered = 0
 tot_nb_reads = 0
 
 samfile = pysam.AlignmentFile(sys.argv[1], "rb")
-forward_reads = pysam.AlignmentFile(sys.argv[1] + ".no_reverse", "wb", template=samfile)
+forward_reads = pysam.AlignmentFile(sys.argv[1] + ".filtered", "wb", template=samfile)
 
 for read in samfile.fetch():
     flag = read.flag
@@ -18,7 +18,6 @@ for read in samfile.fetch():
         and read.pos != -1
         and read.seq != ""
         and read.seq != "*"
-        and read.pos + len(read.seq) < len(ref)
         and read.mapq == 60
         and not ("N" in read.seq)
     ):
