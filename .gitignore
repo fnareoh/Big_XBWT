@@ -1,4 +1,8 @@
 data/
+experiments/*.csv
+experiments/*.png
+experiments/tmp*
+experiments/gammarle
 *.x
 *.log
 *.o
