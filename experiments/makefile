@@ -37,13 +37,13 @@ $(DIR)/xbwt.runs: $(DIR)/$(XBWT)
 	$(RLE1) -a $< > $@
 
 # compute ebwt statistics: reads ordering
-$(DIR)/ebwt.runs: $(DIR)/$(BAM).fasta
+$(DIR)/ebwt.runs: $(DIR)/$(BAM).fasta $(GAMMARLE)
 	$(ROPE) -R -o tmp.bwt $^
 	$(GAMMARLE) tmp.bwt       > $@
 	$(GAMMARLE) tmp.bwt -s 36 >> $@
 
 # compute ebwt statistics: RLO ordering
-$(DIR)/ebwtRLO.runs: $(DIR)/$(BAM).fasta
+$(DIR)/ebwtRLO.runs: $(DIR)/$(BAM).fasta $(GAMMARLE)
 	$(ROPE) -R -s -o tmpRLO.bwt $^
 	$(GAMMARLE) tmpRLO.bwt       > $@
 	$(GAMMARLE) tmpRLO.bwt -s 36 >> $@
@@ -95,5 +95,5 @@ $(DIR)/$(SAM): $(DIR)/$(REF) $(DIR)/$(READS)
 
 
 clean:
-	rm -fr gammarle tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*runs $(DIR)/$(BAM).fasta
+	rm -fr gmmarle tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*runs $(DIR)/$(BAM)* $(DIR)/$(SAM)* $(DIR)/xref.fasta $(DIR)/*.fasta.*
 

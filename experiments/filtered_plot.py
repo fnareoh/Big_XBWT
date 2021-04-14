@@ -65,5 +65,5 @@ autolabel(rects2)
 autolabel(rects3)
 
 fig.tight_layout()
-fig.savefig("fig" + res_datasets_path.split(".")[0] + ".png")
+fig.savefig("fig_" + res_datasets_path.split(".")[0] + ".png")
 # plt.show()

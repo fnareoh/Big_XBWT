@@ -1,5 +1,5 @@
 Name;Path
 E.coli;../data/ecoli/ecoli.runs_summary
 S.aureus;../data/staphylococus/staphylococus.runs_summary
-R.sphaeroides HiSeq raw;../data/R_sphaeroides/HiSeq/R_sphaeroides_Hiseq_ctg_raw.runs_summary
-R.sphaeroides MiSeq raw;../data/R_sphaeroides/MiSeq/R_sphaeroides_Miseq_ctg_raw.runs_summary
+R.sphaeroides HiSeq raw;../data/R_sphaeroides/HiSeq/raw/R_sphaeroides_Hiseq_ctg_raw.runs_summary
+R.sphaeroides MiSeq raw;../data/R_sphaeroides/MiSeq/raw/R_sphaeroides_Miseq_ctg_raw.runs_summary
