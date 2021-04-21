@@ -4,7 +4,7 @@ import struct
 assert len(sys.argv) == 3
 name_file = [sys.argv[1], sys.argv[2]]
 name_file_bwt = [sys.argv[1] + ".bwt"]
-name_end = sys.argv[1] + ".is_end"
+# name_end = sys.argv[1] + ".is_end"
 
 
 def count(name_files):
@@ -81,7 +81,7 @@ def count_is_end(name):
 
 tot = count(name_file)
 tot_bwt = count_rle(name_file_bwt)
-count_is_end(name_end)
+# count_is_end(name_end)
 
 print(tot, "=?", tot_bwt)
 if tot == tot_bwt:

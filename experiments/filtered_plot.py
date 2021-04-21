@@ -20,22 +20,24 @@ def round_half_up(n, decimals=0):
 
 labels = ["\n".join(wrap(l[0], 15)) for l in lines[1:]]
 print(labels)
-synthetic_EBWT_RLO = [round_half_up(int(l[1]) / 10 ** 6, 2) for l in lines[1:]]
-print("synthetic_EBWT_RLO:", synthetic_EBWT_RLO)
-synthetic_EBWT_RLO_no_dollar = [
-    round_half_up(int(l[2]) / 10 ** 6, 2) for l in lines[1:]
-]
-print("synthetic_EBWT_RLO_no_dollar:", synthetic_EBWT_RLO_no_dollar)
-synthetic_XBWT = [round_half_up(int(l[3]) / 10 ** 6, 2) for l in lines[1:]]
-print("synthetic_XBWT:", synthetic_XBWT)
+label_method = lines[0][1:]
+n = len(label_method)
+res = []
+for i in range(n):
+    res.append([round_half_up(int(l[i + 1]) / 10 ** 6, 2) for l in lines[1:]])
+    print(label_method[i] + ":", res[i])
 
 x = np.arange(len(labels))  # the label locations
-width = 0.6  # the width of the bars
-
+width = 0.9  # the width of the bars
 fig, ax = plt.subplots()
-rects1 = ax.bar(x - width / 3, synthetic_EBWT_RLO, width / 3, label="RLO+EBWT")
-rects2 = ax.bar(x, synthetic_EBWT_RLO_no_dollar, width / 3, label="RLO+EBWT no $")
-rects3 = ax.bar(x + width / 3, synthetic_XBWT, width / 3, label="XBWT")
+
+rects = []
+for i in range(n):
+    rects.append(
+        ax.bar(x + (i - n // 2) * (width / n), res[i], width / n, label=label_method[i])
+    )
+# rects2 = ax.bar(x, synthetic_EBWT_RLO_no_dollar, width / 3, label="RLO+EBWT no $")
+# rects3 = ax.bar(x + width / 3, synthetic_XBWT, width / 3, label="XBWT")
 
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
@@ -53,16 +55,15 @@ def autolabel(rects):
             "{}".format(height),
             xy=(rect.get_x() + rect.get_width() / 2, height),
             xytext=(0, 3),  # 3 points vertical offset
-            fontsize=7,
+            fontsize=6,
             textcoords="offset points",
             ha="center",
             va="bottom",
         )
 
 
-autolabel(rects1)
-autolabel(rects2)
-autolabel(rects3)
+for r in rects:
+    autolabel(r)
 
 fig.tight_layout()
 fig.savefig("fig_" + res_datasets_path.split(".")[0] + ".png")

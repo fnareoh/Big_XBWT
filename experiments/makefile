@@ -21,7 +21,7 @@ REV=$(XBWTDIR)/experiments/sam_filter_reversed.py
 GAMMARLE=$(XBWTDIR)/experiments/gammarle
 
 # used internally no need to change
-XBWT=xref.fasta.bwt
+XBWT=ref.fasta.bwt
 BAM=aln-se.bam
 SAM=aln-se.sam
 
@@ -72,15 +72,11 @@ $(DIR)/$(BAM).fasta: $(DIR)/$(BAM).txt
 	$(TXT2FA) $< $@
 
 # compute bam.txt and xbwt file from bam and xref
-$(DIR)/$(BAM).txt: $(DIR)/$(BAM) $(DIR)/x$(REF)
-	cd $(XBWTDIR) && ./$(XBWTEXE) $(DIR)/x$(REF) $(DIR)/$(BAM)
+$(DIR)/$(BAM).txt: $(DIR)/$(BAM) $(DIR)/$(REF)
+	cd $(XBWTDIR) && ./$(XBWTEXE) $(DIR)/$(REF) $(DIR)/$(BAM)
 
 # make xbwt dependant from bam.txt
 $(DIR)/$(XBWT): $(DIR)/$(BAM).txt
-
-# create xref from ref
-$(DIR)/x$(REF): $(DIR)/$(REF)
-		ln -s $(DIR)/$(REF) $(DIR)/x$(REF)
 
 # compute bam file from sam
 $(DIR)/$(BAM): $(DIR)/$(SAM)
@@ -95,5 +91,7 @@ $(DIR)/$(SAM): $(DIR)/$(REF) $(DIR)/$(READS)
 
 
 clean:
-	rm -fr gmmarle tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*runs $(DIR)/$(BAM)* $(DIR)/$(SAM)* $(DIR)/xref.fasta $(DIR)/*.fasta.*
+	rm -fr gammarle tmp.bwt tmpRLO.bwt tmpSP.bwt tmp.spring.fasta $(DIR)/*runs $(DIR)/xref.fasta $(DIR)/*.fasta.*
 
+clean_sam:
+	rm $(DIR)/$(BAM)* $(DIR)/$(SAM)*

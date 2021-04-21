@@ -7,7 +7,17 @@ import sys
 
 datasets_path = sys.argv[1]
 csv_separator = ";"
-lines = [["Datasets", "EBWT+RLO", "EBWT+RLO no $", "XBWT"]]
+# lines = [["Datasets", "EBWT+RLO", "EBWT+RLO no $", "XBWT"]]
+lines = [
+    [
+        "Datasets",
+        "EBWT no $",
+        "EBWT + SPRING +no $",
+        "EBWT+RLO",
+        "EBWT+RLO no $",
+        "XBWT",
+    ]
+]
 
 
 def find_3_last_nb_run(file):
@@ -20,7 +30,8 @@ def find_3_last_nb_run(file):
             assert len(l_split) > 1
             res_nb_runs.append(int(l_split[1]))
         l = file.readline()
-    return res_nb_runs[-3:]
+    # return res_nb_runs[-3:]
+    return [res_nb_runs[1]] + [res_nb_runs[3]] + res_nb_runs[-3:]
 
 
 config_file = open(datasets_path, "r")

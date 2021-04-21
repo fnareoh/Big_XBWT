@@ -1,5 +1,5 @@
 Name;Path
 R.sphaeroides HiSeq raw;../data/R_sphaeroides/HiSeq/raw/R_sphaeroides_Hiseq_ctg_raw.runs_summary
-R.sphaeroides MiSeq raw;../data/R_sphaeroides/MiSeq/raw/R_sphaeroides_Miseq_ctg_raw.runs_summary
 R.sphaeroides HiSeq trimmed;../data/R_sphaeroides/HiSeq/trimmed/R_sphaeroides_Hiseq_ctg_trimmed.runs_summary
+R.sphaeroides MiSeq raw;../data/R_sphaeroides/MiSeq/raw/R_sphaeroides_Miseq_ctg_raw.runs_summary
 R.sphaeroides MiSeq trimmed;../data/R_sphaeroides/MiSeq/trimmed/R_sphaeroides_Miseq_ctg_trimmed.runs_summary
